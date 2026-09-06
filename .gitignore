@@ -1,0 +1,12 @@
+# Ignore local environment files with sensitive keys
+.env
+.env.local
+.env.*.local
+
+# Allow example config
+!.env.example
+
+# Node modules & OS junk
+node_modules/
+.DS_Store
+Thumbs.db

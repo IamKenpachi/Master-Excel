@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExcelCoach AI — Data Analyst Interview Mock Test & Case Study Generator</title>
+  <meta name="description" content="Prepare for 60-minute Data Analyst Excel technical interviews with AI-generated case studies, real Hugging Face & Kaggle datasets, step-by-step answer keys, and interview talking points.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%23107C41%22/><text y=%2268%22 x=%2250%22 font-size=%2255%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22 font-family=%22sans-serif%22>X</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ambient glow lighting -->
+  <div class="ambient-glow"></div>
+  <div class="ambient-glow-secondary"></div>
+
+  <div class="app-container">
+    <!-- Navbar Header -->
+    <header class="navbar">
+      <div class="brand-container" id="nav-brand">
+        <div class="brand-icon">X</div>
+        <div class="brand-info">
+          <h1>ExcelCoach AI <span class="brand-badge">Interview Engine</span></h1>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <button class="nav-btn active" id="tab-generator" data-screen="screen-generator">
+          <span>⚡</span> Generator
+        </button>
+        <button class="nav-btn" id="tab-test" data-screen="screen-test">
+          <span>📋</span> Active Test <span id="active-test-indicator" style="display:none; width:8px; height:8px; background:var(--excel-green); border-radius:50%;"></span>
+        </button>
+        <button class="nav-btn" id="tab-answers" data-screen="screen-answers">
+          <span>💡</span> Answer Key
+        </button>
+        <button class="nav-btn" id="tab-drills" data-screen="screen-drills">
+          <span>📚</span> Quick Drills
+        </button>
+        <button class="nav-btn" id="tab-progress" data-screen="screen-progress">
+          <span>📊</span> Progress
+        </button>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="btn btn-secondary" id="btn-open-settings">
+          <span>⚙️</span> Settings
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Screens Container -->
+    <main class="main-content">
+
+      <!-- SCREEN 1: GENERATOR -->
+      <section id="screen-generator" class="screen active">
+        <!-- API Notice / Demo banner -->
+        <div class="demo-banner" id="banner-api-notice">
+          <div>
+            <strong>💡 Ready to Practice:</strong> Enter your Gemini API key in <button id="btn-banner-settings">Settings</button> for unlimited AI generation, or practice right now with the built-in <strong>eBook Sales Interview Test</strong>!
+          </div>
+          <button class="btn btn-outline-green" id="btn-quick-sample" style="padding: 4px 12px; font-size: 0.8rem;">
+            Load Screenshot Sample Test 🚀
+          </button>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-tagline">🎯 Tailored for 60-Minute Data Analyst Technical Interviews</div>
+          <h2>Excel Mock Test & Case Study Generator</h2>
+          <p>Generate authentic, randomized Excel case studies calibrated to your target seniority level. Pull real-world datasets from Hugging Face & Kaggle or generate synthetic CSV data with realistic data hygiene quirks.</p>
+
+          <div class="config-grid">
+            <!-- Difficulty Selector -->
+            <div class="config-card">
+              <div>
+                <div class="config-label">
+                  <span>1. Select Difficulty</span>
+                  <span id="label-diff-meta" style="color: var(--excel-green); font-weight:700;">Intermediate • 45m</span>
+                </div>
+                <div class="difficulty-selector">
+                  <button class="diff-btn" data-diff="beginner">
+                    <div class="diff-title">Beginner <span style="color: #10B981;">●</span></div>
+                    <div class="diff-meta">8 tasks • Lookups & Pivot Basics</div>
+                  </button>
+                  <button class="diff-btn active" data-diff="intermediate">
+                    <div class="diff-title">Intermediate <span style="color: #F59E0B;">●</span></div>
+                    <div class="diff-meta">12 tasks • XLOOKUP, Aggregations</div>
+                  </button>
+                  <button class="diff-btn" data-diff="advanced">
+                    <div class="diff-title">Advanced <span style="color: #EF4444;">●</span></div>
+                    <div class="diff-meta">15 tasks • Power Query & Maps</div>
+                  </button>
+                  <button class="diff-btn" data-diff="expert">
+                    <div class="diff-title">Expert <span style="color: #8B5CF6;">●</span></div>
+                    <div class="diff-meta">18 tasks • DAX, Modeling & Arrays</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Live expected skills preview box -->
+              <div id="diff-preview-box" class="diff-preview-box">
+                <span class="diff-preview-title">🎯 Expected Skills Tested:</span>
+                <p id="diff-expected-skills" class="diff-expected-skills">
+                  XLOOKUP / INDEX-MATCH, SUMIFS / COUNTIFS, Pivot Tables with Calculated Fields, Text to Columns, Flash Fill, Slicers & Combo Charts.
+                </p>
+              </div>
+
+              <!-- Slider for Number of Questions / Tasks -->
+              <div class="task-slider-container">
+                <div class="task-slider-header">
+                  <span class="slider-label">Number of Tasks / Questions:</span>
+                  <span id="slider-task-count-val" class="slider-val-badge">15 Tasks (~45m)</span>
+                </div>
+                <input type="range" id="slider-task-count" min="5" max="50" value="15" step="1" class="custom-range-slider">
+                <div class="slider-ticks">
+                  <span>5 (Quick)</span>
+                  <span>15 (Default)</span>
+                  <span>30 (Intense)</span>
+                  <span>50 (Deep)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dataset Strategy Dropdown -->
+            <div class="config-card">
+              <div>
+                <div class="config-label">
+                  <span>2. Dataset Strategy</span>
+                  <span style="color: var(--accent-cyan); font-weight: 700;">Dual Search + AI Rank</span>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                  <select id="select-dataset-strategy" class="select-input">
+                    <option value="find_real" selected>🔍 Search Real Datasets (HF & Kaggle)</option>
+                    <option value="synthetic">🤖 Generate Synthetic Dataset (CSV)</option>
+                  </select>
+                </div>
+
+                <!-- Sleek Source Toggle Pills -->
+                <div id="dataset-source-checkboxes" class="dataset-source-checkboxes">
+                  <span class="source-label">Sources:</span>
+                  <label class="source-pill" id="pill-source-hf">
+                    <input type="checkbox" id="check-source-hf" checked>
+                    <span>🤗 Hugging Face</span>
+                  </label>
+                  <label class="source-pill" id="pill-source-kaggle">
+                    <input type="checkbox" id="check-source-kaggle" checked>
+                    <span>📊 Kaggle</span>
+                  </label>
+                </div>
+                <p class="form-help" id="dataset-strategy-help">Select one or both sources to search, then Gemini ranks the top matches.</p>
+              </div>
+
+              <!-- Search Query input for real dataset mode with limit control -->
+              <div id="real-dataset-search-controls" class="form-group" style="margin-top: 1rem; margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Search Domain / Keywords</label>
+                  <div class="search-limit-wrap">
+                    <label for="input-dataset-limit" style="font-size: 0.76rem; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Cards:</label>
+                    <input type="number" id="input-dataset-limit" class="text-input search-limit-input" min="1" max="15" value="3" title="Number of ranked cards to return (1-15)">
+                  </div>
+                </div>
+                <div class="search-input-group">
+                  <input type="text" id="input-dataset-query" class="text-input" placeholder="e.g. retail sales, HR attrition, healthcare..." value="sales">
+                  <button class="btn btn-primary" id="btn-search-datasets" style="white-space: nowrap; height: 42px; padding: 0 1.25rem;">
+                    <span>🔎</span> Search
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Topic Filter Card -->
+            <div class="config-card topic-card-full">
+              <div class="config-label">
+                <span>3. Specific Topic Focus (Optional)</span>
+                <div class="topic-actions-row">
+                  <button class="btn-text-action" id="btn-select-all-topics">Select All</button>
+                  <span style="color: var(--glass-border);">|</span>
+                  <button class="btn-text-action" id="btn-clear-topics">Clear All</button>
+                  <span id="selected-topics-count" class="topic-count-pill">All 12 Active</span>
+                </div>
+              </div>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.85rem;">
+                Toggle specific Excel competencies you want prioritized in your mock test:
+              </p>
+              <div class="topic-chips-container" id="topic-chips-wrapper">
+                <!-- Dynamically populated from EXCEL_TOPICS in app.js -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Ranked Top 3 Datasets Container -->
+          <div id="ranked-datasets-section" class="ranked-datasets-section" style="display: none;">
+            <div class="ranked-datasets-header">
+              <div>
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-bright); display: flex; align-items: center; gap: 0.5rem;">
+                  <span>🏆</span> Gemini Top-Ranked Datasets
+                </h3>
+                <p style="font-size: 0.82rem; color: var(--text-secondary);">
+                  Gemini analyzed candidates from Hugging Face & Kaggle and ranked these as the most relevant for your test:
+                </p>
+              </div>
+              <button class="btn btn-secondary" id="btn-refresh-datasets" style="font-size: 0.8rem; padding: 4px 10px;">
+                🔄 Re-rank
+              </button>
+            </div>
+
+            <div class="ranked-datasets-grid" id="ranked-datasets-cards">
+              <!-- Top 3 cards injected here -->
+            </div>
+          </div>
+
+          <!-- Generator Action Bar -->
+          <div class="generate-actions">
+            <div>
+              <span id="generation-status-text" style="font-size: 0.9rem; color: var(--text-muted);">
+                Ready to generate your personalized test.
+              </span>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+              <button class="btn btn-secondary" id="btn-load-sample">
+                <span>⚡</span> Load Built-in Demo Test
+              </button>
+              <button class="btn btn-primary" id="btn-generate-test">
+                <span>✨</span> Generate Full Mock Test
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- SCREEN 2: ACTIVE TEST (SIMULATED EXCEL SHEET) -->
+      <section id="screen-test" class="screen">
+        <div class="test-header-bar">
+          <div class="test-header-title">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem; flex-wrap:wrap;">
+              <span class="brand-badge" id="test-diff-badge">Intermediate</span>
+              <span class="brand-badge" id="test-industry-badge" style="background:rgba(6,182,212,0.15); color:var(--accent-cyan); border-color:rgba(6,182,212,0.3);">Retail</span>
+              <span class="brand-badge" id="test-model-badge" style="background:rgba(139,92,246,0.15); color:var(--accent-purple); border-color:rgba(139,92,246,0.3);">Gemini 3.5 Flash Lite</span>
+            </div>
+            <h2 id="test-view-title" style="font-size: 1.35rem; font-weight: 700;">Advanced Excel Test for Job Interview</h2>
+          </div>
+
+          <div class="test-header-actions">
+            <!-- Countdown Timer -->
+            <div class="test-timer" id="test-timer-display" title="Countdown Timer">
+              <span id="timer-icon">⏱️</span>
+              <span id="timer-text">45:00</span>
+            </div>
+
+            <button class="btn btn-icon" id="btn-toggle-timer" title="Pause / Resume Timer">
+              <span id="timer-toggle-icon">⏸️</span>
+            </button>
+
+            <!-- Actions -->
+            <button class="btn btn-secondary" id="btn-download-csv" style="display:none;">
+              <span>⬇️</span> Download Dataset (.csv)
+            </button>
+            <a class="btn btn-secondary" id="btn-open-dataset-link" href="#" target="_blank" style="display:none;">
+              <span>↗</span> Open Dataset Source
+            </a>
+            <button class="btn btn-secondary" id="btn-print-test">
+              <span>🖨️</span> Print / PDF
+            </button>
+            <button class="btn btn-primary" id="btn-submit-test">
+              <span>🎯</span> Review Answer Key
+            </button>
+          </div>
+        </div>
+
+        <!-- Excel-Style Simulated Sheet Window (Screenshot Aesthetic) -->
+        <div class="excel-mock-window">
+          <!-- Ribbon Header Mock -->
+          <div class="excel-ribbon-bar">
+            <div class="ribbon-tabs">
+              <span>File</span>
+              <span class="active">Home</span>
+              <span>Insert</span>
+              <span>Page Layout</span>
+              <span>Formulas</span>
+              <span>Data</span>
+              <span>Power Pivot</span>
+              <span>Help</span>
+            </div>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+              <span style="font-size:0.75rem; color:var(--text-muted);">Sheet: [Candidate_Test]</span>
+            </div>
+          </div>
+
+          <!-- Formula Bar Mock -->
+          <div class="formula-bar-mock">
+            <div class="cell-name-box">B7</div>
+            <div style="color:var(--text-muted);">fx</div>
+            <div id="formula-bar-content" style="color:var(--text-primary); font-weight:500;">
+              Import data from external file provided for analysis
+            </div>
+          </div>
+
+          <!-- Scenario Card (Matching Screenshot Box) -->
+          <div class="excel-scenario-box">
+            <div class="scenario-label-col">Background</div>
+            <div class="scenario-desc-col">
+              <p id="test-scenario-background" style="margin-bottom: 0.5rem;"></p>
+              <p id="test-scenario-objective" style="font-size: 0.88rem; color: var(--text-muted);"></p>
+            </div>
+          </div>
+
+          <!-- Tasks Table Grid (Matching Screenshot Columns: No | Instructions | Answer) -->
+          <div class="excel-table-scroll">
+            <table class="excel-tasks-table">
+              <thead>
+                <tr>
+                  <th style="width: 60px; text-align: center;">No</th>
+                  <th>Instructions</th>
+                  <th style="width: 320px;">Candidate Check & Self-Rating</th>
+                </tr>
+              </thead>
+              <tbody id="test-tasks-tbody">
+                <!-- Dynamically populated tasks -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- SCREEN 3: ANSWER KEY & INTERVIEW COACHING -->
+      <section id="screen-answers" class="screen">
+        <div class="answer-key-header">
+          <div>
+            <span class="brand-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--excel-green); border-color: var(--excel-green);">
+              Complete Solution Guide
+            </span>
+            <h2 id="answers-view-title" style="font-size: 1.5rem; font-weight: 800; margin-top: 0.4rem;">
+              Answer Key & Interview Explanations
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; margin-top: 0.25rem;">
+              Review the exact formulas, Power Query workflows, and verbatim talking points to impress your interviewer.
+            </p>
+          </div>
+
+          <div class="answer-key-actions">
+            <button class="btn btn-secondary" id="btn-print-answers">
+              <span>🖨️</span> Print Solutions (PDF)
+            </button>
+            <button class="btn btn-primary" id="btn-back-to-test">
+              <span>📋</span> Return to Test
+            </button>
+          </div>
+        </div>
+
+        <div id="solutions-container">
+          <!-- Dynamically populated solutions -->
+        </div>
+      </section>
+
+
+      <!-- SCREEN 4: QUICK DRILLS / FLASHCARDS -->
+      <section id="screen-drills" class="screen">
+        <div class="hero-card" style="margin-bottom: 1.5rem;">
+          <div class="hero-tagline">⚡ AI-Powered Interview Drills</div>
+          <h2>Topic Focus Drill Mode</h2>
+          <p>Pick any Excel competency and let Gemini dynamically craft 5 creative, high-yield interview questions: formula bug diagnoses, volatile performance edge cases, and verbatim interviewer roleplay.</p>
+          
+          <div class="drill-controls-row">
+            <select id="select-drill-topic" class="select-input">
+              <!-- Injected from EXCEL_TOPICS -->
+            </select>
+            <button class="btn btn-primary" id="btn-start-drill" style="white-space: nowrap;">
+              <span>✨</span> Generate AI Drill 🎯
+            </button>
+          </div>
+
+          <div id="drill-dataset-context-tag" class="drill-context-tag" style="display: none; margin-top: 0.85rem; font-size: 0.82rem; color: var(--accent-cyan);">
+            <span>📊 Grounded in Dataset:</span> <strong id="drill-active-dataset-name">Active Dataset</strong>
+          </div>
+        </div>
+
+        <div id="drill-questions-container" style="display: none;">
+          <!-- Injected drill questions -->
+        </div>
+      </section>
+
+
+      <!-- SCREEN 5: PROGRESS DASHBOARD -->
+      <section id="screen-progress" class="screen">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number" id="stat-total-tests">0</div>
+            <div class="stat-label">Tests Completed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-minutes-practiced">0m</div>
+            <div class="stat-label">Interview Practice Time</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-favorite-diff">Intermediate</div>
+            <div class="stat-label">Most Practiced Level</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-weak-recommendation" style="font-size: 1.4rem; color: var(--accent-amber);">
+              Lookups
+            </div>
+            <div class="stat-label">Recommended Topic to Drill</div>
+          </div>
+        </div>
+
+        <div class="config-card" style="margin-bottom: 2rem;">
+          <div class="config-label">
+            <span>Saved Test History</span>
+            <button class="btn btn-secondary" id="btn-clear-history" style="font-size: 0.75rem; padding: 3px 8px;">Clear History</button>
+          </div>
+          <div id="history-table-container">
+            <p style="color: var(--text-muted); font-size: 0.9rem;">No tests saved yet. Generate or take your first mock test to see your history!</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal-overlay" id="modal-settings">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Settings & API Configuration</h3>
+          <button class="btn-icon" id="btn-close-settings">✕</button>
+        </div>
+
+        <!-- Gemini API Key -->
+        <div class="form-group">
+          <label for="input-gemini-key">Google Gemini API Key</label>
+          <input type="password" id="input-gemini-key" class="text-input" placeholder="AIzaSy...">
+          <p class="form-help">
+            Get a free API key at <a href="https://aistudio.google.com" target="_blank" style="color: var(--accent-cyan);">aistudio.google.com</a>. Saved in your local browser storage.
+          </p>
+        </div>
+
+        <!-- Gemini Model Dropdown (As requested by user!) -->
+        <div class="form-group">
+          <label for="select-gemini-model">Gemini Model (User-Selectable Dropdown)</label>
+          <select id="select-gemini-model" class="select-input">
+            <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Default • ⚡⚡⚡ Fastest)</option>
+            <option value="gemini-3.5-flash">gemini-3.5-flash (⚡⚡ Balanced)</option>
+            <option value="gemini-3.6-flash">gemini-3.6-flash (⚡⚡ Upgraded Reasoning)</option>
+            <option value="gemini-3.7-flash">gemini-3.7-flash (⚡ Highest Flash Quality)</option>
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (🐢 Slower • Maximum Pro Reasoning)</option>
+          </select>
+          <p class="form-help">
+            All 5 requested models are supported. Default is <code>gemini-3.5-flash-lite</code> for fastest generation.
+          </p>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--glass-border); margin: 1.5rem 0;">
+
+        <!-- Kaggle Credentials (Stored in sessionStorage) -->
+        <div class="form-group">
+          <label for="input-kaggle-user">Kaggle Username (Optional)</label>
+          <input type="text" id="input-kaggle-user" class="text-input" placeholder="e.g. john_doe">
+        </div>
+
+        <div class="form-group">
+          <label for="input-kaggle-key">Kaggle API Key (Optional)</label>
+          <input type="password" id="input-kaggle-key" class="text-input" placeholder="e.g. 1a2b3c4d5e...">
+          <p class="form-help">
+            From Kaggle > Account Settings > API > "Create New Token". Stored only in <code>sessionStorage</code> and routed via corsproxy.io.
+          </p>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+          <button class="btn btn-secondary" id="btn-cancel-settings">Cancel</button>
+          <button class="btn btn-primary" id="btn-save-settings">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main App Module -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
