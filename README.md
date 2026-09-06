@@ -22,6 +22,7 @@
   - [Phase 3: Hiring Intelligence, Readiness Scorecard & Adaptive Warmup](#phase-3-hiring-intelligence-readiness-scorecard--adaptive-warmup)
   - [Phase 3.5: UI Polish & Responsive Multi-Tier Hints](#phase-35-ui-polish--responsive-multi-tier-hints)
   - [Phase 4: AI Excel Floating Robot Chatbot Assistant](#phase-4-ai-excel-floating-robot-chatbot-assistant)
+  - [Phase 4.5: Preset Industry Domain Topics (1-Click Query Shortcuts)](#phase-45-preset-industry-domain-topics-1-click-query-shortcuts)
 - [Core Analyst Competencies Tested](#core-analyst-competencies-tested)
 - [Power-User Keyboard Shortcuts](#power-user-keyboard-shortcuts)
 - [Tech Stack & Architecture](#tech-stack--architecture)
@@ -180,6 +181,36 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 
 ---
 
+### Phase 4.5: Preset Industry Domain Topics (1-Click Query Shortcuts)
+*Added 16 industry domain topic shortcuts matching enterprise case study archetypes for instant dataset discovery.*
+
+- **16 Industry Case Archetypes (`#dataset-topics-container`)**:
+  - `📊 General Purpose Generators`
+  - `📋 Project Management`
+  - `🛍️ Sales`
+  - `💰 Finance & Accounting`
+  - `✈️ Travel & Hospitality`
+  - `🎧 Customer Service`
+  - `🛒 E-Commerce & Marketing`
+  - `🏥 Healthcare`
+  - `👥 HR & Analytics`
+  - `🖥️ IT Service Management`
+  - `🏭 Manufacturing & Quality`
+  - `🏠 Real Estate`
+  - `📱 Social Media Analytics`
+  - `📦 Supply Chain & Logistics`
+  - `📢 Digital Marketing`
+  - `🎓 Education & Academia`
+- **1-Click Autofill with Full Editing Freedom**:
+  - Clicking any domain chip (`.domain-topic-chip`) immediately populates the search input (`#input-dataset-query`) and focuses the bar.
+  - Candidates retain complete freedom to modify, append keywords (e.g. `Finance & Accounting EMEA 2025`), or clear it.
+  - Selecting another topic cleanly deletes the previous text and sets the new topic.
+- **Bi-directional Active State Sync**:
+  - Automatically highlights the matching topic pill on load and when typed, and un-highlights if customized.
+  - Pressing **`Enter`** in the search bar triggers instant dual dataset search and AI ranking.
+
+---
+
 ## 🧠 Core Analyst Competencies Tested
 
 ```
@@ -247,6 +278,7 @@ excel-mock-test/
 ├── export.js                # Print styling, test sheet & 1-page cheat sheet
 ├── server.js                # Lightweight Node.js API proxy server
 ├── scripts/
+│   ├── test_industry_topics.mjs # 16 preset industry domain topic chips test
 │   ├── test_learning_modes.mjs  # 26 automated tests verifying all phases
 │   ├── test_chatbot.mjs         # Chatbot DOM, styles, and offline knowledge tests
 │   ├── test_hint_display.mjs    # Responsive CSS & DOM layout verification

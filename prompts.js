@@ -419,3 +419,26 @@ Category: ${task.category}
 
 Format: 2 sentences max. Give candidate the conceptual direction (e.g. which function or feature to look for) without giving away the full formula syntax.`;
 }
+
+/**
+ * 16 Industry Case Study Domains for Dataset Search & Practice
+ * Calibrated to real-world Data Analyst domain cases
+ */
+export const INDUSTRY_DOMAINS = [
+  { id: "general_purpose", name: "General Purpose Generators", shortName: "General Purpose", icon: "📊", query: "General Purpose Generators" },
+  { id: "project_management", name: "Project Management", shortName: "Project Management", icon: "📋", query: "Project Management" },
+  { id: "sales", name: "Sales", shortName: "Sales", icon: "🛍️", query: "Sales" },
+  { id: "finance_accounting", name: "Finance & Accounting", shortName: "Finance & Accounting", icon: "💰", query: "Finance & Accounting" },
+  { id: "travel_hospitality", name: "Travel & Hospitality", shortName: "Travel & Hospitality", icon: "✈️", query: "Travel & Hospitality" },
+  { id: "customer_service", name: "Customer Service", shortName: "Customer Service", icon: "🎧", query: "Customer Service" },
+  { id: "ecommerce_marketing", name: "E-Commerce & Marketing", shortName: "E-Commerce & Marketing", icon: "🛒", query: "E-Commerce & Marketing" },
+  { id: "healthcare", name: "Healthcare", shortName: "Healthcare", icon: "🏥", query: "Healthcare" },
+  { id: "hr_analytics", name: "HR & Analytics", shortName: "HR & Analytics", icon: "👥", query: "HR & Analytics" },
+  { id: "it_service", name: "IT Service Management", shortName: "IT Service Management", icon: "🖥️", query: "IT Service Management" },
+  { id: "manufacturing_quality", name: "Manufacturing & Quality", shortName: "Manufacturing & Quality", icon: "🏭", query: "Manufacturing & Quality" },
+  { id: "real_estate", name: "Real Estate", shortName: "Real Estate", icon: "🏠", query: "Real Estate" },
+  { id: "social_media", name: "Social Media Analytics", shortName: "Social Media Analytics", icon: "📱", query: "Social Media Analytics" },
+  { id: "supply_chain", name: "Supply Chain & Logistics", shortName: "Supply Chain & Logistics", icon: "📦", query: "Supply Chain & Logistics" },
+  { id: "digital_marketing", name: "Digital Marketing", shortName: "Digital Marketing", icon: "📢", query: "Digital Marketing" },
+  { id: "education_academia", name: "Education & Academia", shortName: "Education & Academia", icon: "🎓", query: "Education & Academia" }
+];

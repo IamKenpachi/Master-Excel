@@ -1,6 +1,6 @@
 // app.js - Main Application Orchestrator, Router & Interactive Test Controller
 
-import { EXCEL_TOPICS, DIFFICULTY_CONFIG } from "./prompts.js";
+import { EXCEL_TOPICS, DIFFICULTY_CONFIG, INDUSTRY_DOMAINS } from "./prompts.js";
 import { Storage, DEFAULT_MODEL, SAMPLE_OFFLINE_TEST, AVAILABLE_MODELS, loadEnvConfig } from "./storage.js";
 import { Datasets } from "./datasets.js";
 import { Gemini } from "./gemini.js";
@@ -42,6 +42,7 @@ if (typeof document !== "undefined") {
     initChatbotUI();
     loadSavedSettings();
     renderTopicChips();
+    renderIndustryDomainChips();
     renderDrillTopicSelect();
     updateProgressDashboard();
 
@@ -170,6 +171,67 @@ function renderTopicChips() {
     });
 
     container.appendChild(chip);
+  });
+}
+
+/**
+ * Render Preset Industry Domain Topic Chips for Dataset Search
+ * Allows clicking a domain to populate the search bar, with full editing freedom
+ */
+export function renderIndustryDomainChips() {
+  const container = document.getElementById("dataset-topics-grid");
+  const inputQuery = document.getElementById("input-dataset-query");
+  if (!container || !inputQuery) return;
+
+  container.innerHTML = "";
+
+  INDUSTRY_DOMAINS.forEach(domain => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "domain-topic-chip";
+    chip.dataset.topic = domain.query;
+    chip.dataset.id = domain.id;
+    chip.title = `Fill search bar with "${domain.query}"`;
+    chip.innerHTML = `<span class="chip-icon">${domain.icon}</span><span class="chip-name">${domain.name}</span>`;
+
+    // Check if initial input value matches this domain
+    const currentVal = inputQuery.value.trim().toLowerCase();
+    if (currentVal && (currentVal === domain.query.toLowerCase() || currentVal === (domain.shortName || "").toLowerCase())) {
+      chip.classList.add("active");
+    }
+
+    chip.addEventListener("click", () => {
+      // If clicked, replace existing text in the input bar with this topic
+      inputQuery.value = domain.query;
+      inputQuery.focus();
+
+      // Update active chip styling
+      document.querySelectorAll(".domain-topic-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+    });
+
+    container.appendChild(chip);
+  });
+
+  // Listen for user manual typing/modification to sync active state
+  inputQuery.addEventListener("input", () => {
+    const typedVal = inputQuery.value.trim().toLowerCase();
+    document.querySelectorAll(".domain-topic-chip").forEach(chip => {
+      const topicVal = (chip.dataset.topic || "").toLowerCase();
+      if (typedVal && topicVal === typedVal) {
+        chip.classList.add("active");
+      } else {
+        chip.classList.remove("active");
+      }
+    });
+  });
+
+  // Pressing Enter in the search input triggers dataset search
+  inputQuery.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      performDatasetSearchAndRank();
+    }
   });
 }
 
