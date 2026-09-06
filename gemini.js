@@ -625,6 +625,286 @@ export const Gemini = {
     } catch {
       return task.hint || "Review lookup arguments and ensure your table references are absolute.";
     }
+  },
+
+  /**
+   * AI Excel Assistant Chatbot Query Handler
+   * Provides real-time expert answers to Excel, Power Query, DAX, and interview questions.
+   * Includes rich offline fallback dictionary for zero-latency responses without API keys.
+   */
+  async askChatbotAssistant({ message, history = [], context = null, apiKey, model = DEFAULT_MODEL }) {
+    const trimmedMsg = (message || "").trim();
+    if (!trimmedMsg) {
+      return "Please enter a question about an Excel formula, function, error, or data workflow.";
+    }
+
+    // 1. If API key is available, execute through Gemini
+    if (apiKey) {
+      try {
+        const systemInstruction = `You are ExcelCoach AI Assistant, an elite Senior Excel & Business Intelligence Technical Coach.
+You assist data analysts and candidates in technical interview preparation and day-to-day spreadsheet problem solving.
+
+Your Instructions:
+1. Provide concise, direct, authoritative Excel, Power Query M code, or DAX advice.
+2. When proposing formulas, always format them in markdown code fences with 'excel' tag, e.g.:
+\`\`\`excel
+=XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found])
+\`\`\`
+3. Explain parameters clearly and mention interview-critical best practices (e.g., using structured references @[Col], avoiding volatile OFFSET/INDIRECT, exact match defaults).
+4. If appropriate, add a short "💡 Interview Room Tip" explaining what to say aloud to demonstrate seniority.
+5. If Active Task Context is provided below, directly address the candidate's current task and dataset schema.
+6. Keep answers punchy, practical, and under 300 words. Avoid generic pleasantries.`;
+
+        // Format conversation history
+        let conversationPrompt = "";
+        if (Array.isArray(history) && history.length > 0) {
+          const recent = history.slice(-4);
+          conversationPrompt += "<previous_conversation>\n";
+          recent.forEach(turn => {
+            const role = turn.role === "user" ? "User" : "Assistant";
+            conversationPrompt += `${role}: ${turn.text}\n`;
+          });
+          conversationPrompt += "</previous_conversation>\n\n";
+        }
+
+        // Format active context
+        if (context && (context.task || context.datasetName)) {
+          conversationPrompt += "<active_candidate_context>\n";
+          if (context.taskNo) conversationPrompt += `Active Task No: ${context.taskNo}\n`;
+          if (context.category) conversationPrompt += `Category: ${context.category}\n`;
+          if (context.instruction) conversationPrompt += `Current Task Instruction: ${context.instruction}\n`;
+          if (context.targetCell) conversationPrompt += `Target Cell: ${context.targetCell}\n`;
+          if (context.candidateFormula) conversationPrompt += `Candidate Draft Formula: ${context.candidateFormula}\n`;
+          if (context.datasetName) conversationPrompt += `Dataset: ${context.datasetName}\n`;
+          if (Array.isArray(context.columns) && context.columns.length > 0) {
+            conversationPrompt += `Available Columns: ${context.columns.join(", ")}\n`;
+          }
+          conversationPrompt += "</active_candidate_context>\n\n";
+        }
+
+        conversationPrompt += `Candidate Question: ${trimmedMsg}`;
+
+        const res = await callGeminiAPI({
+          model,
+          apiKey,
+          systemInstruction,
+          prompt: conversationPrompt,
+          schemaType: "text/plain"
+        });
+
+        if (res && res.text) {
+          return res.text.trim();
+        }
+      } catch (err) {
+        console.warn("Gemini chatbot API call failed, using intelligent offline response:", err);
+      }
+    }
+
+    // 2. Intelligent Offline Fallback Engine
+    return getOfflineChatbotAnswer(trimmedMsg, context);
   }
 };
+
+/**
+ * Intelligent Offline Response Generator for top Excel Technical Interview Questions
+ */
+function getOfflineChatbotAnswer(query, context) {
+  const q = query.toLowerCase();
+
+  // If user asks about the active task
+  if ((q.includes("task") || q.includes("this") || q.includes("current") || q.includes("solve") || q.includes("help")) && context && context.instruction) {
+    let advice = `**Active Task Analysis (Task #${context.taskNo || 1}):**\n\n`;
+    advice += `> **Instruction:** ${context.instruction}\n\n`;
+    if (context.category) advice += `**Category:** \`${context.category}\`\n\n`;
+
+    if (context.columns && context.columns.length > 0) {
+      advice += `**Available Columns:** \`${context.columns.slice(0, 6).join("`, `")}\`\n\n`;
+    }
+
+    if (/Power Query|Ingest/i.test(context.category || "") || /Power Query/i.test(context.instruction)) {
+      advice += `**Recommended Approach:**\n1. In Excel ribbon, click **Data > Get Data > From File / Text/CSV**.\n2. In Power Query Editor, verify column data types.\n3. Close & Load to an official Excel Table.\n\n\`\`\`excel\nData > From Text/CSV > Transform Data > Close & Load To...\n\`\`\``;
+    } else if (/lookup|xlookup|vlookup|index/i.test(context.category || "") || /lookup|xlookup/i.test(context.instruction)) {
+      advice += `**Recommended Approach:**\nUse modern \`XLOOKUP\` with structured table references:\n\n\`\`\`excel\n=XLOOKUP(@[KeyColumn], LookupTable[KeyColumn], LookupTable[ReturnColumn], "Not Found")\n\`\`\`\n\n💡 *Interview Room Tip: Mention that XLOOKUP defaults to exact matching, eliminating the common 4th-argument bug found in classic VLOOKUP.*`;
+    } else if (/pivot/i.test(context.category || "") || /pivot/i.test(context.instruction)) {
+      advice += `**Recommended Approach:**\n1. Insert > Pivot Table on a new worksheet.\n2. Drag dimensional categories to **Rows** and numeric metrics to **Values**.\n3. Format number displays as Currency or Integer for executive readability.`;
+    } else if (/sumif|countif|aggregate/i.test(context.category || "") || /sumif|countif/i.test(context.instruction)) {
+      advice += `**Recommended Approach:**\nUse multi-criteria aggregations. Remember that for \`SUMIFS\`, the sum range comes first:\n\n\`\`\`excel\n=SUMIFS(Table[Amount], Table[Region], "North", Table[Year], 2024)\n\`\`\``;
+    } else {
+      advice += `**Key Best Practice:**\nUse structured references like \`@[ColumnName]\` instead of static coordinates (\`A2\`) so your calculation expands dynamically as data grows.`;
+    }
+    return advice;
+  }
+
+  // XLOOKUP queries
+  if (q.includes("xlookup")) {
+    return `### \`XLOOKUP\` — Modern Lookup Standard
+
+\`XLOOKUP\` replaces both \`VLOOKUP\` and \`INDEX/MATCH\` in modern Excel (Office 365 / 2021+).
+
+\`\`\`excel
+=XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found], [match_mode], [search_mode])
+\`\`\`
+
+**Key Advantages for Interviews:**
+- **Exact Match by Default**: No need to specify \`, FALSE\` or \`, 0\`.
+- **Left-Lookup Native**: Can return values to the left of the lookup column without restructuring.
+- **Built-in Error Handling**: 4th argument replaces cumbersome \`IFERROR()\` or \`IFNA()\`.
+- **Non-Volatile & Fast**: Reads only the necessary columns rather than the entire table range.
+
+💡 *Interview Room Tip: "I prefer XLOOKUP because it decouples return columns from hardcoded column index integers, making our reporting model resilient to column insertions."*`;
+  }
+
+  // INDEX / MATCH queries
+  if (q.includes("index") && q.includes("match")) {
+    return `### \`INDEX / MATCH\` — The Senior Analyst Gold Standard
+
+Before \`XLOOKUP\`, \`INDEX / MATCH\` was the definitive replacement for \`VLOOKUP\`.
+
+\`\`\`excel
+=INDEX(return_range, MATCH(lookup_value, lookup_range, 0))
+\`\`\`
+
+**2-Way Matrix Lookup (Rows and Columns):**
+\`\`\`excel
+=INDEX(DataGrid, MATCH(RowVal, RowHeaders, 0), MATCH(ColVal, ColHeaders, 0))
+\`\`\`
+
+**Why Hiring Managers Love It:**
+- Dynamic column index: Doesn't break when columns are rearranged.
+- Significantly faster than VLOOKUP on large tables (100k+ rows).
+- Shows architectural maturity over basic VLOOKUP.`;
+  }
+
+  // VLOOKUP queries
+  if (q.includes("vlookup")) {
+    return `### \`VLOOKUP\` — Syntax & Pitfalls
+
+\`\`\`excel
+=VLOOKUP(lookup_value, table_array, col_index_num, [range_lookup])
+\`\`\`
+
+**Critical Interview Watchouts:**
+1. **Always use \`FALSE\` or \`0\` as the 4th argument** for exact matches. Omitting it triggers approximate match and returns silent incorrect values!
+2. **Left-Lookup Failure**: \`VLOOKUP\` can only look to the right of the key column.
+3. **Column Index Brittleness**: Inserting a new column breaks hardcoded indices (e.g. column \`3\` becomes column \`4\`).
+
+💡 *Interview Recommendation: Acknowledge you understand VLOOKUP, but explain you use \`XLOOKUP\` or \`INDEX/MATCH\` in production to avoid maintenance failures.*`;
+  }
+
+  // #SPILL! error
+  if (q.includes("spill")) {
+    return `### Troubleshooting the \`#SPILL!\` Error
+
+The \`#SPILL!\` error occurs in Dynamic Array formulas (\`FILTER\`, \`UNIQUE\`, \`SORT\`, \`SEQUENCE\`) when the calculated result range is obstructed.
+
+**Top Root Causes & Fixes:**
+1. **Cell in Spill Range is Occupied**: Clear any text, spaces, or formatting in the cells below/right of the formula.
+2. **Merged Cells**: Dynamic arrays cannot spill into merged cells. Unmerge the range.
+3. **Implicit Intersection within an Excel Table**: Dynamic arrays cannot automatically spill inside an official Excel Table (\`ListObject\`). Use formulas in regular ranges or aggregate them.
+
+💡 *Pro Tip: Use the spilled range operator \`#\` (e.g. \`=SUM(A2#)\`) to dynamically reference the entire spilled result array.*`;
+  }
+
+  // #N/A error
+  if (q.includes("#n/a") || q.includes("na error")) {
+    return `### Troubleshooting the \`#N/A\` Error
+
+\`#N/A\` indicates that a lookup function could not find the target value in the lookup range.
+
+**Diagnostic Checklist:**
+1. **Mismatched Data Types**: One column is text (e.g. \`"1001"\`) while the other is an integer (\`1001\`). Fix with \`VALUE()\` or \`TEXT()\`.
+2. **Trailing Hidden Whitespace**: Invisible spaces or non-breaking spaces (\`CHAR(160)\`). Wrap with \`TRIM(CLEAN(cell))\`.
+3. **Missing Exact Match Parameter**: Ensure 4th argument of VLOOKUP is \`FALSE\`.
+
+\`\`\`excel
+=XLOOKUP(A2, Customers[ID], Customers[Name], "Customer Not Found")
+\`\`\``;
+  }
+
+  // SUMIFS / COUNTIFS queries
+  if (q.includes("sumif") || q.includes("countif")) {
+    return `### \`SUMIFS\` & \`COUNTIFS\` Multi-Criteria Aggregation
+
+\`\`\`excel
+=SUMIFS(sum_range, criteria_range1, criteria1, [criteria_range2, criteria2, ...])
+\`\`\`
+
+**Crucial Parameter Order Rule:**
+- For \`SUMIF\` (singular), the \`sum_range\` is **last**.
+- For \`SUMIFS\` (plural), the \`sum_range\` is **first**!
+
+**Practical Example:**
+\`\`\`excel
+=SUMIFS(Orders[Revenue], Orders[Region], "EMEA", Orders[Year], 2024, Orders[Status], "<>Cancelled")
+\`\`\`
+
+💡 *Interview Tip: Mention using structured table references \`Orders[Revenue]\` so your aggregations expand automatically when monthly records are appended.*`;
+  }
+
+  // Power Query / ETL
+  if (q.includes("power query") || q.includes("m code") || q.includes("etl")) {
+    return `### Power Query (Get & Transform) Interview Guide
+
+Power Query is Excel's native ETL (Extract, Transform, Load) engine powered by the **M language**.
+
+**Essential Transformations for Data Analyst Tests:**
+1. **Unpivot Columns**: Transform wide crosstab survey/financial reports into tall normalized datasets for Pivot Tables.
+2. **Promote Headers**: Elevate the first row to column headers (\`Table.PromoteHeaders\`).
+3. **Change Data Types**: Explicitly cast dates, currency numbers, and text to prevent silent formula errors.
+4. **Merge vs Append**:
+   - **Merge**: Relational SQL-style JOIN (Inner, Left Outer, Full).
+   - **Append**: SQL UNION ALL stacking datasets vertically.
+
+💡 *Interview Pitch: "I isolate ETL transformations inside Power Query to preserve the immutability of raw CSVs and automate monthly refreshes in a single click."*`;
+  }
+
+  // DAX / Power Pivot
+  if (q.includes("dax") || q.includes("power pivot")) {
+    return `### Power Pivot & DAX Fundamentals
+
+**Calculated Columns vs. DAX Measures:**
+- **Calculated Column**: Evaluated row-by-row during data refresh; stored in memory (RAM).
+- **DAX Measure**: Calculated dynamically on-the-fly based on Pivot Table filter context; zero storage footprint.
+
+**Classic Measure Example:**
+\`\`\`excel
+Total Sales := SUM(Sales[Revenue])
+Margin % := DIVIDE([Total Margin], [Total Sales], 0)
+\`\`\`
+
+💡 *Interview Room Tip: "I always build explicit DAX measures with \`DIVIDE()\` to gracefully handle divide-by-zero errors without throwing #DIV/0! in front of executives."*`;
+  }
+
+  // Text cleaning
+  if (q.includes("clean") || q.includes("trim") || q.includes("text")) {
+    return `### Text Cleaning & Standardization Blueprint
+
+Data imported from web portals, ERPs, or CSVs often carries invisible artifacts that sabotage lookups and joins.
+
+\`\`\`excel
+=TRIM(CLEAN(SUBSTITUTE(A2, CHAR(160), " ")))
+\`\`\`
+
+**How It Works:**
+- \`SUBSTITUTE(..., CHAR(160), " ")\`: Replaces non-breaking web spaces (\`&nbsp;\`) with standard spaces.
+- \`CLEAN()\`: Strips the first 32 non-printable ASCII characters.
+- \`TRIM()\`: Removes all leading, trailing, and excessive repeated spaces.`;
+  }
+
+  // Default Fallback
+  return `### ExcelCoach AI Assistant
+
+I can explain any Excel function, formula structure, or error troubleshooting strategy!
+
+**Popular topics you can ask me about:**
+- \`XLOOKUP\` vs \`INDEX/MATCH\`
+- How to troubleshoot \`#SPILL!\` or \`#N/A\` errors
+- Writing \`SUMIFS\` and \`COUNTIFS\` multi-condition logic
+- Modern dynamic arrays (\`FILTER\`, \`UNIQUE\`, \`SORT\`, \`LET\`)
+- Power Query ETL best practices (Unpivoting, merging, data types)
+- DAX measures vs calculated columns in Power Pivot
+
+*(Tip: Add your free Google Gemini API key in **Settings** to ask open-ended custom questions!)*`;
+}
+
 

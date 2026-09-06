@@ -21,6 +21,7 @@
   - [Phase 2: 4-Workout Split Drill Engine (Deliberate Practice)](#phase-2-4-workout-split-drill-engine-deliberate-practice)
   - [Phase 3: Hiring Intelligence, Readiness Scorecard & Adaptive Warmup](#phase-3-hiring-intelligence-readiness-scorecard--adaptive-warmup)
   - [Phase 3.5: UI Polish & Responsive Multi-Tier Hints](#phase-35-ui-polish--responsive-multi-tier-hints)
+  - [Phase 4: AI Excel Floating Robot Chatbot Assistant](#phase-4-ai-excel-floating-robot-chatbot-assistant)
 - [Core Analyst Competencies Tested](#core-analyst-competencies-tested)
 - [Power-User Keyboard Shortcuts](#power-user-keyboard-shortcuts)
 - [Tech Stack & Architecture](#tech-stack--architecture)
@@ -159,6 +160,26 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 
 ---
 
+### Phase 4: AI Excel Floating Robot Chatbot Assistant
+*Integrated an omnipresent, context-aware AI technical mentor for on-demand spreadsheet problem solving.*
+
+- **Floating Robot Launcher (`#btn-chatbot-launcher`)**:
+  - 56px circular floating action button positioned in the bottom-right corner with a modern robot avatar, glowing green status indicator, and tooltip.
+- **Context-Aware Floating Chat Widget (`#chatbot-widget`)**:
+  - Modern glassmorphic dark container (`rgba(11, 17, 32, 0.96)`) with backdrop blur and fluid opening/closing animations.
+  - Automatically syncs with current candidate context: when on the active test screen, automatically passes active task instructions, target cells, candidate formula drafts, and dataset schema to the AI.
+  - Option to toggle task context on/off via the header context bar.
+- **1-Click Quick Suggestion Chips (`#chatbot-chips`)**:
+  - High-frequency prompt pills (`💡 XLOOKUP syntax`, `🐛 Fix #SPILL!`, `⚡ INDEX/MATCH vs XLOOKUP`, `🧹 Text Cleaning`, `🔄 Power Query Tips`).
+- **Formatted Formula Code Blocks & 1-Click Copy**:
+  - Auto-formats formulas and syntax blueprints into dark terminal code blocks with an instant **`📋 Copy`** button (`✓ Copied!`).
+- **Dual Online & Offline Intelligence**:
+  - Online: Powered by Google Gemini with a specialized Senior Excel & BI Technical Coach persona.
+  - Offline / Zero-Key Engine: Rich built-in heuristic knowledge base answering common questions (`XLOOKUP`, `INDEX/MATCH`, `VLOOKUP`, `#SPILL!`, `#N/A`, `SUMIFS`, `Power Query`, `DAX`, `TRIM/CLEAN`) without requiring an API key.
+- **Hotkeys**: Press **`Alt + C`** anywhere to toggle the chatbot, or **`Esc`** to dismiss.
+
+---
+
 ## 🧠 Core Analyst Competencies Tested
 
 ```
@@ -194,6 +215,7 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 | **`1`** | Rate: Easy | Marks task as Easy |
 | **`2`** | Rate: Fair | Marks task as Fair |
 | **`3`** | Rate: Hard | Marks task as Hard (flags for morning review) |
+| **`Alt`** + **`C`** | Toggle AI Chatbot | Opens or minimizes the AI Excel Coach assistant |
 | **`?`** | Shortcuts Modal | Opens the keyboard reference sheet |
 | **`Esc`** | Close | Dismisses any active drawer or modal |
 
@@ -211,7 +233,7 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 - **Storage & State**:
   - Browser `localStorage` for offline persistence of tests, settings, and progress analytics.
 - **Testing**:
-  - Automated Node.js verification suites (`scripts/test_learning_modes.mjs`, `scripts/test_hint_display.mjs`, `scripts/test_phase1.mjs`).
+  - Automated Node.js verification suites (`scripts/test_learning_modes.mjs`, `scripts/test_chatbot.mjs`, `scripts/test_hint_display.mjs`, `scripts/test_phase1.mjs`).
 
 ```
 excel-mock-test/
@@ -226,6 +248,7 @@ excel-mock-test/
 ├── server.js                # Lightweight Node.js API proxy server
 ├── scripts/
 │   ├── test_learning_modes.mjs  # 26 automated tests verifying all phases
+│   ├── test_chatbot.mjs         # Chatbot DOM, styles, and offline knowledge tests
 │   ├── test_hint_display.mjs    # Responsive CSS & DOM layout verification
 │   └── test_phase1.mjs          # Linter & schema inspector test suite
 ├── .env.example             # Template for API credentials

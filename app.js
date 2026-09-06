@@ -23,6 +23,9 @@ const state = {
   drillMode: "scenario", // "scenario" | "glitch" | "skeleton" | "verbal"
   hintTiers: {}, // { [taskNum]: 0 | 1 | 2 | 3 }
   taskProgress: {}, // { [taskNum]: { done: false, rating: 'Easy'|'Fair'|'Hard', notes: '', candidateFormula: '' } }
+  isChatbotOpen: false,
+  chatbotHistory: [],
+  isChatbotWaiting: false,
   timer: {
     intervalId: null,
     totalSeconds: 45 * 60,
@@ -36,6 +39,7 @@ if (typeof document !== "undefined") {
     await loadEnvConfig();
     initUI();
     initEventListeners();
+    initChatbotUI();
     loadSavedSettings();
     renderTopicChips();
     renderDrillTopicSelect();
@@ -132,6 +136,8 @@ function switchScreen(screenId) {
       }
     }
   }
+
+  updateChatbotContextLabel();
 }
 
 /**
@@ -1075,6 +1081,8 @@ function selectTaskRow(taskNum) {
       if (linterBox) linterBox.style.display = "none";
     }
   }
+
+  updateChatbotContextLabel();
 }
 
 /**
@@ -1945,11 +1953,19 @@ function initEventListeners() {
 
   // Global Keyboard Shortcuts
   document.addEventListener("keydown", (e) => {
+    // Alt + C toggles AI Chatbot anywhere
+    if (e.altKey && (e.key === "c" || e.key === "C")) {
+      e.preventDefault();
+      toggleChatbot();
+      return;
+    }
+
     if (e.key === "Escape") {
       document.getElementById("modal-shortcuts")?.classList.remove("active");
       document.getElementById("modal-settings")?.classList.remove("active");
       document.getElementById("modal-scorecard")?.classList.remove("active");
       toggleSchemaDrawer(false);
+      toggleChatbot(false);
       return;
     }
 
@@ -2012,5 +2028,323 @@ function initEventListeners() {
       e.preventDefault();
       shortcutsModal?.classList.toggle("active");
     }
+  });
+}
+
+/**
+ * Render Markdown elements into safe, styled HTML with code blocks and copy buttons
+ */
+export function renderChatMarkdown(rawText) {
+  if (!rawText) return "";
+
+  // 1. Extract fenced code blocks and replace with tokens
+  const codeBlocks = [];
+  let processed = rawText.replace(/```(?:excel|vba|sql|m)?\n?([\s\S]*?)```/gi, (match, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(code.trim());
+    return `__CODE_BLOCK_${idx}__`;
+  });
+
+  // 2. Escape HTML for general text safety
+  processed = escapeHtml(processed);
+
+  // 3. Re-inject formatted code blocks
+  codeBlocks.forEach((code, idx) => {
+    const safeCode = escapeHtml(code);
+    const blockHtml = `
+      <div class="chat-code-block">
+        <div class="chat-code-header">
+          <span>Excel Formula / Code</span>
+          <button type="button" class="btn-chat-copy" data-code="${safeCode}" title="Copy code to clipboard">📋 Copy</button>
+        </div>
+        <pre class="chat-code-content"><code>${safeCode}</code></pre>
+      </div>
+    `;
+    processed = processed.replace(`__CODE_BLOCK_${idx}__`, blockHtml);
+  });
+
+  // 4. Inline code
+  processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // 5. Headings
+  processed = processed.replace(/^###\s*(.+)$/gm, '<h5 style="margin:0.4rem 0 0.2rem; color:var(--accent-cyan); font-size:0.9rem;">$1</h5>');
+  processed = processed.replace(/^##\s*(.+)$/gm, '<h4 style="margin:0.5rem 0 0.25rem; color:var(--text-bright); font-size:0.95rem;">$1</h4>');
+
+  // 6. Bold & Italic
+  processed = processed.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  processed = processed.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  // 7. Blockquotes
+  processed = processed.replace(/^(?:&gt;|>)\s*(.+)$/gm, '<blockquote style="border-left:3px solid var(--accent-cyan); margin:0.3rem 0; padding-left:0.6rem; color:var(--text-secondary); font-style:italic;">$1</blockquote>');
+
+  // 8. Bullet points
+  processed = processed.replace(/^[•\-\*]\s+(.+)$/gm, '<li>$1</li>');
+  processed = processed.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul style="margin:0.3rem 0; padding-left:1.2rem;">$1</ul>');
+  processed = processed.replace(/<\/ul>\s*<ul[^>]*>/g, '');
+
+  // 9. Paragraphs
+  const paragraphs = processed.split(/\n{2,}/).map(p => {
+    const trimmed = p.trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("<div class=\"chat-code-block\"") || trimmed.startsWith("<ul") || trimmed.startsWith("<h") || trimmed.startsWith("<blockquote")) {
+      return trimmed;
+    }
+    return `<p style="margin:0 0 0.4rem 0;">${trimmed.replace(/\n/g, "<br>")}</p>`;
+  });
+
+  return paragraphs.join("");
+}
+
+/**
+ * Update Chatbot Context Bar Label based on active screen and task
+ */
+function updateChatbotContextLabel() {
+  const labelEl = document.getElementById("chatbot-context-label");
+  if (!labelEl) return;
+
+  if (state.activeScreen === "screen-test" && state.currentTest) {
+    const taskNum = state.selectedTaskNum || 1;
+    const task = state.currentTest.test?.tasks?.find(t => (t.no || t.number) === taskNum);
+    const cat = task?.category || "Excel";
+    labelEl.textContent = `Active: Task ${taskNum} (${cat})`;
+  } else if (state.activeScreen === "screen-drills") {
+    labelEl.textContent = `Active: Workout Drills (${state.drillMode})`;
+  } else {
+    labelEl.textContent = "Ready for Excel questions";
+  }
+}
+
+/**
+ * Toggle Chatbot Widget Open / Closed
+ */
+function toggleChatbot(force) {
+  const widget = document.getElementById("chatbot-widget");
+  const launcher = document.getElementById("btn-chatbot-launcher");
+  if (!widget) return;
+
+  const shouldOpen = force !== undefined ? force : !state.isChatbotOpen;
+  state.isChatbotOpen = shouldOpen;
+
+  widget.classList.toggle("open", shouldOpen);
+  widget.setAttribute("aria-hidden", String(!shouldOpen));
+
+  if (launcher) {
+    launcher.classList.toggle("active", shouldOpen);
+  }
+
+  if (shouldOpen) {
+    updateChatbotContextLabel();
+    const input = document.getElementById("chatbot-input");
+    if (input) setTimeout(() => input.focus(), 150);
+    // Scroll messages to bottom
+    const messagesEl = document.getElementById("chatbot-messages");
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+}
+
+/**
+ * Extract active context for the chatbot prompt
+ */
+function getChatbotContext() {
+  const useTaskContext = document.getElementById("chatbot-context-toggle")?.checked ?? true;
+  if (!useTaskContext) return null;
+
+  if (state.activeScreen === "screen-test" && state.currentTest) {
+    const taskNum = state.selectedTaskNum || 1;
+    const task = state.currentTest.test?.tasks?.find(t => (t.no || t.number) === taskNum) || {};
+    const csvText = state.currentTest.syntheticCsv || state.currentTest.test?.syntheticCsv || "";
+    const schema = parseDatasetSchema(csvText, "");
+    const candidateFormula = state.taskProgress[taskNum]?.candidateFormula || "";
+
+    return {
+      taskNo: taskNum,
+      category: task.category || "Excel",
+      instruction: task.instruction || "",
+      targetCell: task.targetCell || "",
+      datasetName: state.currentTest.test?.title || "Active Dataset",
+      columns: schema.columns.map(c => c.name),
+      candidateFormula
+    };
+  }
+
+  if (state.activeScreen === "screen-drills") {
+    return {
+      drillMode: state.drillMode || "scenario",
+      topic: document.getElementById("select-drill-topic")?.value || "Excel"
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Send user message and fetch assistant response
+ */
+async function handleSendChatMessage(customQuery) {
+  const inputEl = document.getElementById("chatbot-input");
+  const messagesEl = document.getElementById("chatbot-messages");
+  const sendBtn = document.getElementById("btn-chatbot-send");
+  if (!messagesEl) return;
+
+  const userQuery = (customQuery || inputEl?.value || "").trim();
+  if (!userQuery || state.isChatbotWaiting) return;
+
+  // Clear input
+  if (inputEl) {
+    inputEl.value = "";
+    inputEl.style.height = "auto";
+  }
+
+  // 1. Append User Message
+  state.chatbotHistory.push({ role: "user", text: userQuery });
+  const userMsgEl = document.createElement("div");
+  userMsgEl.className = "chat-message user";
+  userMsgEl.innerHTML = `<div class="chat-bubble"><p>${escapeHtml(userQuery)}</p></div>`;
+  messagesEl.appendChild(userMsgEl);
+
+  // 2. Append Typing Indicator
+  state.isChatbotWaiting = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  const typingEl = document.createElement("div");
+  typingEl.className = "chat-message assistant chat-typing-container";
+  typingEl.id = "chat-typing-indicator";
+  typingEl.innerHTML = `
+    <div class="chat-avatar">🤖</div>
+    <div class="chat-typing">
+      <span></span><span></span><span></span>
+    </div>
+  `;
+  messagesEl.appendChild(typingEl);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  // 3. Fetch response
+  try {
+    const context = getChatbotContext();
+    const apiKey = Storage.getGeminiKey();
+    const model = Storage.getGeminiModel();
+
+    const responseText = await Gemini.askChatbotAssistant({
+      message: userQuery,
+      history: state.chatbotHistory,
+      context,
+      apiKey,
+      model
+    });
+
+    // Remove typing indicator
+    document.getElementById("chat-typing-indicator")?.remove();
+
+    // Append Assistant Message
+    state.chatbotHistory.push({ role: "assistant", text: responseText });
+
+    const assistantMsgEl = document.createElement("div");
+    assistantMsgEl.className = "chat-message assistant";
+    assistantMsgEl.innerHTML = `
+      <div class="chat-avatar">🤖</div>
+      <div class="chat-bubble">${renderChatMarkdown(responseText)}</div>
+    `;
+
+    // Wire copy buttons inside this message
+    assistantMsgEl.querySelectorAll(".btn-chat-copy").forEach(copyBtn => {
+      copyBtn.addEventListener("click", () => {
+        const codeText = copyBtn.dataset.code || "";
+        if (codeText && navigator.clipboard) {
+          navigator.clipboard.writeText(codeText).then(() => {
+            const orig = copyBtn.innerHTML;
+            copyBtn.innerHTML = "✓ Copied!";
+            setTimeout(() => { copyBtn.innerHTML = orig; }, 1400);
+          }).catch(() => {
+            const textarea = document.createElement("textarea");
+            textarea.value = codeText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+            const orig = copyBtn.innerHTML;
+            copyBtn.innerHTML = "✓ Copied!";
+            setTimeout(() => { copyBtn.innerHTML = orig; }, 1400);
+          });
+        }
+      });
+    });
+
+    messagesEl.appendChild(assistantMsgEl);
+  } catch (err) {
+    document.getElementById("chat-typing-indicator")?.remove();
+    const errorMsgEl = document.createElement("div");
+    errorMsgEl.className = "chat-message assistant";
+    errorMsgEl.innerHTML = `
+      <div class="chat-avatar">🤖</div>
+      <div class="chat-bubble" style="border-color: rgba(244,63,94,0.4);">
+        <p style="color: var(--accent-rose);"><strong>Error:</strong> ${escapeHtml(err.message || "Failed to retrieve response")}</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem;">Check your network or verify your Gemini API key in Settings.</p>
+      </div>
+    `;
+    messagesEl.appendChild(errorMsgEl);
+  } finally {
+    state.isChatbotWaiting = false;
+    if (sendBtn) sendBtn.disabled = false;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (inputEl) inputEl.focus();
+  }
+}
+
+/**
+ * Initialize Chatbot Event Listeners & Quick Chips
+ */
+function initChatbotUI() {
+  const launcher = document.getElementById("btn-chatbot-launcher");
+  const closeBtn = document.getElementById("btn-close-chat");
+  const clearBtn = document.getElementById("btn-clear-chat");
+  const form = document.getElementById("chatbot-form");
+  const textarea = document.getElementById("chatbot-input");
+
+  launcher?.addEventListener("click", () => toggleChatbot());
+  closeBtn?.addEventListener("click", () => toggleChatbot(false));
+
+  clearBtn?.addEventListener("click", () => {
+    state.chatbotHistory = [];
+    const messagesEl = document.getElementById("chatbot-messages");
+    if (messagesEl) {
+      messagesEl.innerHTML = `
+        <div class="chat-message assistant">
+          <div class="chat-avatar">🤖</div>
+          <div class="chat-bubble">
+            <p><strong>Chat cleared!</strong></p>
+            <p>Ask me anything about Excel formulas, Power Query M code, DAX, or interview trade-offs.</p>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  form?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    handleSendChatMessage();
+  });
+
+  // Textarea Enter key & auto-resize
+  textarea?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendChatMessage();
+    }
+  });
+
+  textarea?.addEventListener("input", () => {
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, 100) + "px";
+  });
+
+  // Quick Chips
+  document.querySelectorAll(".chat-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const query = chip.dataset.query;
+      if (query) {
+        if (!state.isChatbotOpen) toggleChatbot(true);
+        handleSendChatMessage(query);
+      }
+    });
   });
 }
