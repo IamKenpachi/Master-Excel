@@ -252,6 +252,15 @@
             </button>
 
             <!-- Actions -->
+            <button class="btn btn-secondary" id="btn-toggle-schema" title="Inspect Dataset Schema & Columns (Press D)">
+              <span>📊</span> Schema Inspector
+            </button>
+            <button class="btn btn-secondary" id="btn-toggle-strict" title="Toggle Strict Exam Mode (Locks hints & enables timed pressure)">
+              <span id="strict-mode-icon">🛡️</span> <span id="strict-mode-text">Strict Mode: OFF</span>
+            </button>
+            <button class="btn btn-icon" id="btn-shortcuts-help" title="Keyboard Shortcuts Guide (Press ?)" style="width:34px; height:34px; font-size:0.95rem;">
+              ⌨️
+            </button>
             <button class="btn btn-secondary" id="btn-download-csv" style="display:none;">
               <span>⬇️</span> Download Dataset (.csv)
             </button>
@@ -286,12 +295,18 @@
             </div>
           </div>
 
-          <!-- Formula Bar Mock -->
-          <div class="formula-bar-mock">
-            <div class="cell-name-box">B7</div>
-            <div style="color:var(--text-muted);">fx</div>
-            <div id="formula-bar-content" style="color:var(--text-primary); font-weight:500;">
-              Import data from external file provided for analysis
+          <!-- Interactive Formula Bar with Live Syntax Linter -->
+          <div class="formula-bar-container">
+            <div class="formula-bar-mock">
+              <div class="cell-name-box" id="formula-cell-name">B7</div>
+              <div class="fx-label" title="Insert Function / Excel Formula">fx</div>
+              <input type="text" id="formula-bar-input" class="formula-input" placeholder="Click any task below, then type or test your formula here (e.g. =XLOOKUP(A2, Products[ID], Products[Price]))" autocomplete="off" spellcheck="false">
+              <button class="btn btn-sm btn-secondary btn-formula-check" id="btn-check-formula" title="Check Formula Syntax (Press Enter)">
+                <span>⚡</span> Lint Formula
+              </button>
+            </div>
+            <div id="formula-linter-feedback" class="formula-linter-box" style="display: none;">
+              <!-- Dynamic live linting suggestions, best practices & warnings -->
             </div>
           </div>
 
@@ -320,6 +335,43 @@
             </table>
           </div>
         </div>
+
+        <!-- Floating Dataset Schema Inspector Drawer -->
+        <aside id="schema-inspector-drawer" class="schema-drawer" aria-hidden="true">
+          <div class="schema-drawer-header">
+            <div>
+              <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span style="font-size: 1.2rem;">📊</span>
+                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-bright);">Dataset Schema Inspector</h3>
+              </div>
+              <p id="schema-dataset-title" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">No dataset loaded</p>
+            </div>
+            <button class="btn btn-icon" id="btn-close-schema" title="Close Drawer (Press Esc or D)" style="width:28px; height:28px;">✕</button>
+          </div>
+
+          <div class="schema-drawer-body">
+            <div class="schema-summary-bar">
+              <span id="schema-col-count" class="schema-badge">0 Columns</span>
+              <span id="schema-row-count" class="schema-badge">0 Sample Rows</span>
+              <span class="schema-tip">💡 Click any column to copy name</span>
+            </div>
+
+            <div class="schema-table-wrapper">
+              <table class="schema-table">
+                <thead>
+                  <tr>
+                    <th>Column Name</th>
+                    <th>Type</th>
+                    <th>Sample Value</th>
+                  </tr>
+                </thead>
+                <tbody id="schema-table-tbody">
+                  <!-- Dynamically populated schema columns -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </aside>
       </section>
 
 
@@ -339,6 +391,9 @@
           </div>
 
           <div class="answer-key-actions">
+            <button class="btn btn-secondary" id="btn-print-cheatsheet" title="Print compact 1-page formula & talking points cheat sheet">
+              <span>⚡</span> 1-Page Cheat Sheet
+            </button>
             <button class="btn btn-secondary" id="btn-print-answers">
               <span>🖨️</span> Print Solutions (PDF)
             </button>
@@ -359,8 +414,27 @@
         <div class="hero-card" style="margin-bottom: 1.5rem;">
           <div class="hero-tagline">⚡ AI-Powered Interview Drills</div>
           <h2>Topic Focus Drill Mode</h2>
-          <p>Pick any Excel competency and let Gemini dynamically craft 5 creative, high-yield interview questions: formula bug diagnoses, volatile performance edge cases, and verbatim interviewer roleplay.</p>
+          <p>Pick any Excel competency and choose your workout split: formula bug diagnoses, fill-in-the-blank syntax skeletons, or verbal interviewer roleplay.</p>
           
+          <!-- 4 Specialized Workout Modes -->
+          <div class="drill-mode-selector-wrap" style="margin: 1.25rem 0 0.85rem;">
+            <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.5rem;">Select Practice Workout Split:</label>
+            <div class="drill-mode-pills" id="drill-mode-pills">
+              <button type="button" class="drill-mode-btn active" data-mode="scenario" title="Real-world data analyst scenario and multi-step pipeline">
+                <span>🎯</span> Technical Scenario
+              </button>
+              <button type="button" class="drill-mode-btn" data-mode="glitch" title="Find and fix the error in a broken formula (#N/A, #VALUE!, circular)">
+                <span>🐛</span> Glitch & Debug Hunt
+              </button>
+              <button type="button" class="drill-mode-btn" data-mode="skeleton" title="Complete missing parameters, tables, and lookup flags">
+                <span>🧩</span> Syntax Skeleton
+              </button>
+              <button type="button" class="drill-mode-btn" data-mode="verbal" title="Master oral technical interview answers to 'Why this function?'">
+                <span>🎙️</span> Verbal Defense
+              </button>
+            </div>
+          </div>
+
           <div class="drill-controls-row">
             <select id="select-drill-topic" class="select-input">
               <!-- Injected from EXCEL_TOPICS -->
@@ -383,6 +457,26 @@
 
       <!-- SCREEN 5: PROGRESS DASHBOARD -->
       <section id="screen-progress" class="screen">
+        <!-- Adaptive Morning Weakness Warmup Card -->
+        <div id="weakness-warmup-card" class="hero-card weakness-hero" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%); border-color: rgba(245, 158, 11, 0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+            <div>
+              <div class="hero-tagline" style="color: var(--accent-amber); background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3);">
+                🔥 Targeted Interview Prep
+              </div>
+              <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-bright); margin: 0.4rem 0 0.25rem;">
+                Adaptive Weakness Warmup: <span id="warmup-topic-name" style="color: var(--accent-amber);">Power Query & Lookups</span>
+              </h3>
+              <p style="font-size: 0.88rem; color: var(--text-secondary); max-width: 600px;">
+                Based on tasks you rated "Hard" or used hints on, drilling this competency will deliver the fastest gains for your interview performance.
+              </p>
+            </div>
+            <button class="btn btn-primary" id="btn-start-warmup-drill" style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); border-color: #F59E0B; white-space: nowrap;">
+              <span>⚡</span> Start 3-Min Rapid Drill
+            </button>
+          </div>
+        </div>
+
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-number" id="stat-total-tests">0</div>
@@ -468,6 +562,109 @@
         <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
           <button class="btn btn-secondary" id="btn-cancel-settings">Cancel</button>
           <button class="btn btn-primary" id="btn-save-settings">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hiring Manager Readiness Scorecard Modal -->
+    <div id="modal-scorecard" class="modal-overlay">
+      <div class="modal-card scorecard-modal-card" style="max-width: 640px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.3rem;">🎯</span>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-bright);">Hiring Manager Technical Evaluation</h3>
+          </div>
+          <button class="btn btn-icon" id="btn-close-scorecard" style="width: 28px; height: 28px;">✕</button>
+        </div>
+        <div class="modal-body scorecard-body" style="padding: 1.25rem;">
+          <!-- Overall Verdict Banner -->
+          <div class="scorecard-verdict-banner" id="scorecard-verdict-banner">
+            <div class="scorecard-circle" id="scorecard-circle-score">88%</div>
+            <div class="scorecard-verdict-info">
+              <span class="scorecard-verdict-badge" id="scorecard-verdict-badge">STRONG HIRE</span>
+              <h4 id="scorecard-verdict-title" style="margin: 0.2rem 0; font-size: 1.05rem;">Ready for Senior Data Analyst Technical Screen</h4>
+              <p id="scorecard-verdict-summary" style="font-size: 0.82rem; color: var(--text-secondary); margin: 0;">Candidate demonstrated exceptional command of dynamic array formulas and clean modeling practices.</p>
+            </div>
+          </div>
+
+          <!-- Evaluation Metrics Grid -->
+          <div class="scorecard-metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin: 1.25rem 0;">
+            <div class="scorecard-metric-card">
+              <span class="metric-label" style="font-size: 0.72rem; color: var(--text-muted); display: block;">Tasks Completed</span>
+              <strong class="metric-val" id="scorecard-stat-tasks" style="font-size: 1.1rem; color: var(--text-bright);">15 / 15</strong>
+            </div>
+            <div class="scorecard-metric-card">
+              <span class="metric-label" style="font-size: 0.72rem; color: var(--text-muted); display: block;">Confidence Index</span>
+              <strong class="metric-val" id="scorecard-stat-confidence" style="font-size: 1.1rem; color: var(--excel-green);">80% Easy/Fair</strong>
+            </div>
+            <div class="scorecard-metric-card">
+              <span class="metric-label" style="font-size: 0.72rem; color: var(--text-muted); display: block;">Hints Used</span>
+              <strong class="metric-val" id="scorecard-stat-hints" style="font-size: 1.1rem; color: var(--accent-cyan);">0 (Clean)</strong>
+            </div>
+            <div class="scorecard-metric-card">
+              <span class="metric-label" style="font-size: 0.72rem; color: var(--text-muted); display: block;">Exam Condition</span>
+              <strong class="metric-val" id="scorecard-stat-strict" style="font-size: 1.1rem; color: var(--accent-amber);">Standard</strong>
+            </div>
+          </div>
+
+          <!-- Domain Competency Matrix -->
+          <div class="scorecard-competencies" style="margin-bottom: 1.25rem;">
+            <h5 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.6rem;">Competency Breakdown:</h5>
+            <div id="scorecard-competency-list" style="display: flex; flex-direction: column; gap: 0.6rem;">
+              <!-- Dynamic Category progress bars injected here -->
+            </div>
+          </div>
+
+          <!-- Hiring Manager Recommendations -->
+          <div class="scorecard-advice-box" style="padding: 0.85rem; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: var(--radius-md); margin-bottom: 1.25rem;">
+            <strong style="color: var(--accent-cyan); display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.35rem; font-size: 0.88rem;">
+              <span>💡</span> Technical Interviewer Takeaways:
+            </strong>
+            <p id="scorecard-advice-text" style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; margin: 0;"></p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="scorecard-actions" style="display: flex; gap: 0.75rem; justify-content: flex-end; flex-wrap: wrap;">
+            <button class="btn btn-secondary" id="btn-scorecard-cheat-sheet">
+              <span>⚡</span> 1-Page Cheat Sheet (PDF)
+            </button>
+            <button class="btn btn-secondary" id="btn-scorecard-view-solutions">
+              <span>📖</span> Full Solution Guide
+            </button>
+            <button class="btn btn-primary" id="btn-scorecard-finish">
+              <span>✓</span> Close Scorecard
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="modal-shortcuts" class="modal-overlay">
+      <div class="modal-card" style="max-width: 540px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.3rem;">⌨️</span>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-bright);">Power-User Keyboard Shortcuts</h3>
+          </div>
+          <button class="btn btn-icon" id="btn-close-shortcuts" style="width: 28px; height: 28px;">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 1.25rem;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Practice Excel hands-on without touching your mouse to mirror the speed of senior technical candidates.
+          </p>
+          <div class="shortcuts-grid">
+            <div class="shortcut-row"><kbd>J</kbd> or <kbd>↓</kbd> <span>Select next task</span></div>
+            <div class="shortcut-row"><kbd>K</kbd> or <kbd>↑</kbd> <span>Select previous task</span></div>
+            <div class="shortcut-row"><kbd>Space</kbd> <span>Toggle selected task Done</span></div>
+            <div class="shortcut-row"><kbd>H</kbd> <span>Cycle progressive hints (Nudge $\rightarrow$ Blueprint $\rightarrow$ Solution)</span></div>
+            <div class="shortcut-row"><kbd>F</kbd> <span>Focus Formula Bar input</span></div>
+            <div class="shortcut-row"><kbd>Enter</kbd> <span>Lint / check formula in Formula Bar</span></div>
+            <div class="shortcut-row"><kbd>D</kbd> <span>Toggle Dataset Schema Inspector</span></div>
+            <div class="shortcut-row"><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> <span>Rate task Easy / Fair / Hard</span></div>
+            <div class="shortcut-row"><kbd>?</kbd> <span>Open this shortcuts help guide</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd> <span>Close drawers and modals</span></div>
+          </div>
         </div>
       </div>
     </div>

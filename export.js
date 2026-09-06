@@ -198,5 +198,142 @@ export const Exporter = {
 
     printWindow.document.write(printHtml);
     printWindow.document.close();
+  },
+
+  /**
+   * Generates a high-density, printable 1-page Interview Defense Cheat Sheet
+   */
+  printInterviewCheatSheet(testData) {
+    const test = testData.test || testData;
+    const answerKey = testData.answerKey || [];
+    const printWindow = window.open("", "_blank");
+
+    const answerLookup = {};
+    answerKey.forEach((a, idx) => {
+      const num = parseInt(a.taskNumber || a.taskNo || a.task_no || a.no || a.number || (idx + 1), 10);
+      answerLookup[num] = a;
+    });
+
+    const rowsHtml = (test.tasks || []).map((task, idx) => {
+      const taskNum = parseInt(task.number || task.no || task.taskNo || task.task_no || (idx + 1), 10);
+      const ansObj = answerLookup[taskNum] || {};
+      const formula = ansObj.answer || task.hint || "Standard Formula";
+      const tip = ansObj.proTip || "Favor dynamic references over static ranges.";
+      const talkingPoint = ansObj.interviewTalkingPoint || ansObj.explanation || "Explain calculation trade-offs to demonstrate senior analytical maturity.";
+
+      return `
+        <tr>
+          <td style="font-weight:bold; text-align:center; width:36px; vertical-align:top; border:1px solid #d0d7de; padding:6px;">${taskNum}</td>
+          <td style="width:140px; vertical-align:top; border:1px solid #d0d7de; padding:6px;">
+            <strong style="color:#0f5132; font-size:9pt;">${task.category || "Excel"}</strong><br>
+            <span style="font-size:8pt; color:#333;">${task.instruction || ""}</span>
+          </td>
+          <td style="vertical-align:top; border:1px solid #d0d7de; padding:6px; font-family:Consolas, Monaco, monospace; font-size:8.5pt; color:#107C41; background:#f8fafc;">
+            <strong>${formula}</strong>
+          </td>
+          <td style="vertical-align:top; border:1px solid #d0d7de; padding:6px; font-size:8pt; color:#333;">
+            <strong style="color:#b45309;">💡 Tip:</strong> ${tip}<br>
+            <strong style="color:#6b21a8;">🎙️ Defense:</strong> ${talkingPoint}
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    const printHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>${test.title} - Technical Interview Defense Sheet</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 10mm 10mm;
+          }
+          body {
+            font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+            color: #111;
+            background: #fff;
+            margin: 0;
+            padding: 12px;
+          }
+          .sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 2px solid #107C41;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+          }
+          .sheet-title {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #107C41;
+          }
+          .sheet-meta {
+            font-size: 8.5pt;
+            color: #555;
+            text-align: right;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8.5pt;
+          }
+          th {
+            background: #f1f5f9;
+            color: #334155;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            padding: 6px;
+            text-align: left;
+          }
+          @media print {
+            body { padding: 0; }
+            button.no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="text-align: right; margin-bottom: 10px;">
+          <button class="no-print" onclick="window.print()" style="padding: 6px 14px; background: #107C41; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
+            🖨️ Print 1-Page Cheat Sheet (PDF)
+          </button>
+        </div>
+
+        <div class="sheet-header">
+          <div>
+            <div class="sheet-title">⚡ ${test.title}</div>
+            <div style="font-size:9pt; color:#475569; margin-top:2px;">Senior Technical Interview Cheat Sheet • Formulas & Oral Defense</div>
+          </div>
+          <div class="sheet-meta">
+            <strong>Level:</strong> ${test.difficultyLabel || test.difficulty} • <strong>Tasks:</strong> ${test.tasks?.length || 15}<br>
+            Candidate Quick Reference
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center;">#</th>
+              <th>Topic / Objective</th>
+              <th>Master Formula / Syntax</th>
+              <th>Interview Defense & Pro Tip</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div style="margin-top:12px; font-size:7.5pt; color:#64748b; text-align:center; border-top:1px solid #e2e8f0; padding-top:6px;">
+          Master-Excel Technical Interview Simulator • Generated for Job Candidate Practice
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
   }
 };

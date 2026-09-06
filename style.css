@@ -1053,26 +1053,103 @@ html, body {
   padding-bottom: 2px;
 }
 
+/* Enhanced Interactive Formula Bar */
+.formula-bar-container {
+  display: flex;
+  flex-direction: column;
+  background: #0A0E17;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .formula-bar-mock {
   display: flex;
   align-items: center;
-  background: #0A0E17;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.4rem 1rem;
+  padding: 0.45rem 1rem;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
   gap: 0.75rem;
-  overflow-x: auto;
 }
 
 .cell-name-box {
   background: rgba(255, 255, 255, 0.05);
-  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px 10px;
   border-radius: 4px;
-  color: var(--text-primary);
-  font-weight: 600;
+  color: var(--excel-green);
+  font-weight: 700;
   flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.fx-label {
+  color: var(--accent-cyan);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 1rem;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.formula-input {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #A7F3D0;
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  outline: none;
+  transition: var(--transition-smooth);
+}
+
+.formula-input:focus {
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.btn-formula-check {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
+
+.formula-linter-box {
+  padding: 0.6rem 1rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.formula-linter-box.valid {
+  background: rgba(16, 185, 129, 0.08);
+  color: #6EE7B7;
+  border-top-color: rgba(16, 185, 129, 0.3);
+}
+
+.formula-linter-box.warning {
+  background: rgba(245, 158, 11, 0.08);
+  color: #FDE68A;
+  border-top-color: rgba(245, 158, 11, 0.3);
+}
+
+.formula-linter-box.error {
+  background: rgba(244, 63, 94, 0.08);
+  color: #FECDD3;
+  border-top-color: rgba(244, 63, 94, 0.3);
+}
+
+.linter-badge {
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
 }
 
 /* Scenario Box inside Sheet */
@@ -1146,7 +1223,7 @@ html, body {
   padding: 1rem 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 0.92rem;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .task-row {
@@ -1167,10 +1244,12 @@ html, body {
   font-weight: 700;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  vertical-align: top;
 }
 
 .task-instruction-cell {
   line-height: 1.5;
+  vertical-align: top;
 }
 
 .task-category-tag {
@@ -1186,6 +1265,7 @@ html, body {
 
 .task-action-cell {
   width: 340px;
+  vertical-align: top;
 }
 
 .task-status-row {
@@ -1216,7 +1296,7 @@ html, body {
 .rating-btn.fair.active { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border-color: var(--accent-amber); }
 .rating-btn.hard.active { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); border-color: var(--accent-rose); }
 
-/* Hint modal / popup */
+/* Hint modal / popup fallback */
 .hint-box {
   margin-top: 0.5rem;
   padding: 0.6rem 0.85rem;
@@ -1230,6 +1310,267 @@ html, body {
 
 .hint-box.visible {
   display: block;
+}
+
+/* 3-Tier Progressive Hint Scaffold (Vertical Clean Layout) */
+.hint-scaffold-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.85rem;
+  background: rgba(10, 15, 29, 0.95);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  gap: 0.75rem;
+  animation: fadeIn 0.2s ease-in-out;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.hint-scaffold-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hint-scaffold-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hint-scaffold-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hint-tier-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.hint-scaffold-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-hint-tier-select {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-hint-tier-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.btn-hint-tier-select.active {
+  background: rgba(6, 182, 212, 0.18);
+  color: var(--accent-cyan);
+  border-color: rgba(6, 182, 212, 0.4);
+}
+
+.btn-hint-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  transition: var(--transition-smooth);
+}
+
+.btn-hint-dismiss:hover {
+  color: var(--accent-rose);
+  background: rgba(244, 63, 94, 0.12);
+}
+
+/* Individual Hint Tier Cards */
+.hint-tier-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: var(--transition-smooth);
+}
+
+.hint-tier-card.tier-1 {
+  border-left: 4px solid var(--accent-amber);
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%);
+}
+
+.hint-tier-card.tier-2 {
+  border-left: 4px solid var(--accent-cyan);
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%);
+}
+
+.hint-tier-card.tier-3 {
+  border-left: 4px solid var(--excel-green);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%);
+}
+
+.hint-tier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hint-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.hint-tier-badge.nudge {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.hint-tier-badge.blueprint {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.hint-tier-badge.solution {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--excel-green);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.btn-copy-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-copy-code:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.hint-tier-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.hint-tier-code {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0.3rem 0;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  color: #A7F3D0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.hint-tier-explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.hint-tier-explanation strong {
+  font-size: 0.75rem;
+  color: var(--excel-green);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.hint-tier-advance {
+  margin-top: 0.3rem;
+}
+
+.btn-hint-advance {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  color: var(--accent-cyan);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-hint-advance:hover {
+  background: rgba(6, 182, 212, 0.08);
+  border-color: var(--accent-cyan);
+  border-style: solid;
 }
 
 /* Answer Key View */
@@ -1706,4 +2047,311 @@ html, body {
     gap: 0.35rem;
   }
 }
+
+/* ==========================================================================
+   Floating Dataset Schema Inspector Drawer
+   ========================================================================== */
+.schema-drawer {
+  position: fixed;
+  top: 0;
+  right: -480px;
+  width: 440px;
+  max-width: 90vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  border-left: 1px solid var(--glass-border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.schema-drawer.open {
+  right: 0;
+}
+
+.schema-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.schema-drawer-body {
+  flex: 1;
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+}
+
+.schema-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.schema-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.schema-tip {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.schema-table-wrapper {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.schema-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.schema-table th {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.schema-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+}
+
+.schema-col-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.schema-col-row:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.schema-col-row:hover td {
+  color: var(--text-bright);
+}
+
+.schema-type-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-cyan);
+}
+
+/* ==========================================================================
+   Strict Exam Mode & Countdown Warning Alerts
+   ========================================================================== */
+#btn-toggle-strict.active {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: var(--accent-rose);
+  color: var(--accent-rose);
+}
+
+.timer-pulse-warning {
+  animation: pulseAmber 1.2s infinite ease-in-out;
+  border-color: var(--accent-amber) !important;
+  color: var(--accent-amber) !important;
+}
+
+.timer-pulse-danger {
+  animation: pulseRose 0.8s infinite ease-in-out;
+  border-color: var(--accent-rose) !important;
+  color: var(--accent-rose) !important;
+}
+
+@keyframes pulseAmber {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(245, 158, 11, 0); }
+  50% { transform: scale(1.03); box-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
+}
+
+@keyframes pulseRose {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(244, 63, 94, 0); }
+  50% { transform: scale(1.05); box-shadow: 0 0 16px rgba(244, 63, 94, 0.5); }
+}
+
+/* ==========================================================================
+   Keyboard Shortcuts Grid & KBD styling
+   ========================================================================== */
+.shortcuts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.75rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  background: #0A0E17;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-bright);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   Drill Workout Mode Pills
+   ========================================================================== */
+.drill-mode-pills {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.drill-mode-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: var(--transition-fast);
+}
+
+.drill-mode-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-bright);
+}
+
+.drill-mode-btn.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--excel-green);
+  color: #34D399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+/* ==========================================================================
+   Hiring Manager Readiness Scorecard Modal
+   ========================================================================== */
+.scorecard-verdict-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(15, 23, 42, 0.7) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.scorecard-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #0A0E17;
+  border: 3px solid var(--excel-green);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #34D399;
+  flex-shrink: 0;
+}
+
+.scorecard-verdict-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--excel-green);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.scorecard-metric-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.75rem;
+}
+
+.scorecard-comp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.scorecard-comp-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.scorecard-comp-bar {
+  height: 6px;
+  border-radius: 9999px;
+  background: #1E293B;
+  overflow: hidden;
+}
+
+.scorecard-comp-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--excel-green), var(--accent-cyan));
+  transition: width 0.6s ease-out;
+}
+
+/* ==========================================================================
+   Weakness Warmup Card Glow
+   ========================================================================== */
+.weakness-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.weakness-hero::after {
+  content: "";
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
 

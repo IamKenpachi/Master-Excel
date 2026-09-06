@@ -244,6 +244,8 @@ Respond ONLY with a valid JSON object matching this exact structure:
         "category": "Data Ingestion",
         "instruction": "Detailed, specific instruction referencing actual columns",
         "hint": "Concise hint on which function/ribbon feature to use",
+        "hintNudge": "1-sentence conceptual hint guiding candidate without giving away formula",
+        "hintBlueprint": "Syntax template with argument placeholders e.g. =XLOOKUP(val, lookup_range, return_range)",
         "targetCell": "B7"
       }
     ]
@@ -308,7 +310,10 @@ Return ONLY a valid JSON array of the top ${count} items:
 /**
  * Creative AI-Powered Quick Drill Generator Prompt
  */
-export function buildDrillGenerationPrompt({ topic, datasetMeta, difficulty = "intermediate", count = 5 }) {
+/**
+ * Creative AI-Powered Quick Drill Generator Prompt
+ */
+export function buildDrillGenerationPrompt({ topic, datasetMeta, difficulty = "intermediate", count = 5, drillMode = "scenario" }) {
   let datasetContext = "";
   if (datasetMeta && datasetMeta.name) {
     datasetContext = `
@@ -326,32 +331,72 @@ Context: Ground the scenarios in standard high-volume enterprise transactions da
 `;
   }
 
+  let modeRules = "";
+  if (drillMode === "glitch") {
+    modeRules = `
+<drill_mode_focus: GLITCH & DEBUG HUNT>
+Generate 5 real-world BROKEN or FAILING Excel formulas on "${topic}".
+Each question MUST present an explicit broken formula snippet with a classic interview error:
+- Unexpected #N/A (e.g. text vs number lookup type mismatch, or hidden trailing whitespace)
+- #VALUE! error (e.g. arithmetic on text dates or corrupt characters)
+- #SPILL! collision in dynamic arrays
+- Unanchored reference bug (e.g. dragging formula down shifts table headers)
+- Circular dependency or wrong aggregation total due to omitted exact match flag (0/FALSE)
+In "scenario": show the context and the exact buggy formula.
+In "solution": explain precisely what caused the bug and provide the corrected formula.
+</drill_mode_focus>`;
+  } else if (drillMode === "skeleton") {
+    modeRules = `
+<drill_mode_focus: SYNTAX SKELETON FILL-IN-THE-BLANKS>
+Generate 5 fill-in-the-blank formula mastery questions on "${topic}".
+Each question MUST present a formula template containing 2-4 blank placeholders '___' that the candidate must complete:
+Example: '=XLOOKUP(A2, ___[Product_ID], ___[Price], "Not Found", ___)'
+In "scenario": describe the business need and show the skeleton formula with '___'.
+In "solution": provide the fully filled formula with clear explanation for each blank.
+</drill_mode_focus>`;
+  } else if (drillMode === "verbal") {
+    modeRules = `
+<drill_mode_focus: VERBAL INTERVIEW DEFENSE & ROLEPLAY>
+Generate 5 technical oral defense and conceptual interview questions on "${topic}".
+Focus on questions technical hiring managers ask aloud to separate junior button-pushers from senior data analysts:
+- "Why choose XLOOKUP / INDEX-MATCH over VLOOKUP on large enterprise workbooks?"
+- "How does Power Query ingestion compare to worksheet formula helper columns for auditability?"
+- "What is the architectural difference between a DAX Calculated Column and a Measure?"
+- "Why are OFFSET and INDIRECT banned in high-frequency financial models?"
+In "scenario": phrase the question as the interviewer speaking directly to the candidate.
+In "solution": provide the ideal structured answer (Problem, Trade-offs, Recommendation).
+In "interviewTalkingPoint": verbatim 2-sentence punchy answer to impress the interviewer.
+</drill_mode_focus>`;
+  } else {
+    modeRules = `
+<strict_diversity_rules>
+Every question must represent a realistic technical interview evaluation format chosen from these categories:
+1. BUG DIAGNOSIS: Pinpoint root cause of a broken formula and fix it.
+2. ARCHITECTURE & PERFORMANCE: Compare two approaches on a 500,000-row workbook.
+3. BUSINESS SCENARIO CALCULATION: Multi-condition aggregation, date math, or dynamic array.
+4. LIVE CODING CHALLENGE: Construct an elegant modern formula (LET, LAMBDA, XLOOKUP, FILTER).
+</strict_diversity_rules>`;
+  }
+
   return `<goal>
-Generate ${count} creative, non-repetitive, high-yield Data Analyst technical interview flashcard drill questions for the topic: "${topic}".
+Generate ${count} creative, non-repetitive Data Analyst interview flashcard drill questions for: "${topic}".
+Workout Mode: ${drillMode.toUpperCase()}
 Difficulty Level: ${difficulty}.
 </goal>
 
 ${datasetContext}
-
-<strict_diversity_rules>
-DO NOT generate generic "How and when do you use [function]?" questions.
-Every question must represent a realistic technical interview evaluation format chosen from these 5 categories:
-1. BUG DIAGNOSIS & TROUBLESHOOTING: Present a broken or misbehaving Excel formula (e.g., unexpected #N/A, #SPILL!, circular reference, or wrong summary total). The candidate must pinpoint the root cause and provide the fix.
-2. ARCHITECTURE & PERFORMANCE TRADE-OFFS: Compare two approaches on a 500,000-row workbook (e.g. Volatile functions like OFFSET/INDIRECT vs INDEX, or Power Query vs complex nested formulas, or DAX Calculated Column vs Measure).
-3. BUSINESS SCENARIO CALCULATION: A realistic business problem requiring a multi-condition aggregation, date math, cohort metric, or dynamic array.
-4. INTERVIEWER DEFENSE & ROLEPLAY: A question testing communication and technical judgment: "Why would you choose approach X over Y when presenting findings to leadership?"
-5. LIVE CODING CHALLENGE: Construct an elegant modern formula (e.g. LET, LAMBDA, XLOOKUP with multiple criteria, or FILTER/SORT/UNIQUE).
-</strict_diversity_rules>
+${modeRules}
 
 <schema_specification>
 Respond ONLY with a valid JSON object matching this exact structure:
 {
   "topic": "${topic}",
+  "drillMode": "${drillMode}",
   "questions": [
     {
       "id": 1,
-      "type": "Bug Diagnosis",
-      "badge": "⚡ Bug Diagnosis",
+      "type": "${drillMode}",
+      "badge": "${drillMode === 'glitch' ? '🐛 Glitch Hunt' : (drillMode === 'skeleton' ? '🧩 Syntax Skeleton' : (drillMode === 'verbal' ? '🎙️ Verbal Defense' : '🎯 Scenario'))}",
       "title": "[Concise Question Title]",
       "scenario": "[Detailed, realistic interview scenario, code snippet, or formula error]",
       "solution": "[Exact formula or step-by-step resolution]",
