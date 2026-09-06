@@ -1384,6 +1384,7 @@ function updateSchemaDrawer() {
 function openDatasetDetailsModal() {
   const modal = document.getElementById("modal-dataset-details");
   if (!modal) return;
+  toggleSchemaDrawer(false);
   renderDatasetDetailsModal();
   modal.classList.add("active");
 }
@@ -1427,6 +1428,29 @@ function renderDatasetDetailsModal() {
       if (typeof c === "string") return { name: c, type: "Text", sample: "—" };
       return { name: c.name || c.column || String(c), type: c.type || "Text", sample: c.sample || "—" };
     });
+  }
+
+  if (columns.length === 0 && Array.isArray(testObj.tasks) && testObj.tasks.length > 0) {
+    const extractedCols = new Set();
+    testObj.tasks.forEach(t => {
+      const instr = t.instruction || "";
+      const matches = instr.match(/\[([A-Za-z0-9_\s]+)\]/g);
+      if (matches) {
+        matches.forEach(m => {
+          const colName = m.replace(/[\[\]]/g, "").trim();
+          if (colName && !colName.startsWith("tbl") && colName.length < 30) {
+            extractedCols.add(colName);
+          }
+        });
+      }
+    });
+    if (extractedCols.size > 0) {
+      columns = Array.from(extractedCols).map(c => ({
+        name: c,
+        type: /date|year|month/i.test(c) ? "Date" : (/amount|price|cost|revenue|units|sales|revpar|rate|id|code/i.test(c) ? "Number / Currency" : "Text"),
+        sample: "—"
+      }));
+    }
   }
 
   // Update Title & Badges

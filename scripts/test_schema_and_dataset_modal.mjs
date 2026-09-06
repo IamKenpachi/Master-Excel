@@ -60,6 +60,19 @@ test("HTML-04: #modal-dataset-details exists with title, badges, body, and close
   assert.ok(html.includes('id="btn-close-dataset-modal"'), "Missing #btn-close-dataset-modal");
 });
 
+test("HTML-05: #modal-dataset-details is a root-level modal and NOT nested inside #modal-scorecard", () => {
+  const scorecardIdx = html.indexOf('id="modal-scorecard"');
+  const detailsIdx = html.indexOf('id="modal-dataset-details"');
+  assert.ok(scorecardIdx !== -1 && detailsIdx !== -1, "Both modals must exist");
+  
+  // Extract snippet between scorecard and details modal
+  const betweenSnippet = html.slice(scorecardIdx, detailsIdx);
+  // Count open and close div tags in this snippet to guarantee scorecard was closed
+  const opens = (betweenSnippet.match(/<div(\s|>)/g) || []).length;
+  const closes = (betweenSnippet.match(/<\/div>/g) || []).length;
+  assert.strictEqual(opens, closes, `Scorecard modal tags must be balanced before details modal (opens: ${opens}, closes: ${closes})`);
+});
+
 // -----------------------------------------------------------------------------
 // Group 2: CSS Styles
 // -----------------------------------------------------------------------------
