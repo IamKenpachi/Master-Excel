@@ -1,11 +1,12 @@
 # ExcelCoach AI — Data Analyst Interview Mock Test & Case Study Generator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
-[![Tests: 26/26 Passing](https://img.shields.io/badge/Tests-26%2F26%20Passing%20(100%25)-10B981.svg)](#automated-testing--verification)
+[![Tests: 40/40 Phase 5 Passing](https://img.shields.io/badge/Phase%205%20Tests-40%2F40%20Passing%20(100%25)-10B981.svg)](#automated-testing--verification)
+[![All Test Suites: 100% Passing](https://img.shields.io/badge/All%20Suites-100%25%20Passing-10B981.svg)](#automated-testing--verification)
 [![JavaScript](https://img.shields.io/badge/Vanilla_JS-ES6+-F7DF1E.svg?logo=javascript&logoColor=black)](#tech-stack--architecture)
 [![CSS3](https://img.shields.io/badge/Vanilla_CSS-Custom_Design_System-1572B6.svg?logo=css3&logoColor=white)](#tech-stack--architecture)
 [![Node.js](https://img.shields.io/badge/Node.js-v18+-339933.svg?logo=node.js&logoColor=white)](#getting-started)
-[![AI Engines](https://img.shields.io/badge/AI_Engines-Gemini_2.5_|_OpenRouter-8B5CF6.svg)](#ai-engine--dataset-intelligence)
+[![AI Engines](https://img.shields.io/badge/AI_Engines-Gemini_3.8_Flash_|_OpenRouter-8B5CF6.svg)](#ai-engine--dataset-intelligence)
 
 > **The ultimate technical assessment simulator for aspiring and seasoned Data Analysts, BI Engineers, and Analytics Consultants preparing for high-stakes spreadsheet technical interviews.**
 
@@ -23,6 +24,7 @@
   - [Phase 3.5: UI Polish & Responsive Multi-Tier Hints](#phase-35-ui-polish--responsive-multi-tier-hints)
   - [Phase 4: AI Excel Floating Robot Chatbot Assistant](#phase-4-ai-excel-floating-robot-chatbot-assistant)
   - [Phase 4.5: Preset Industry Domain Topics (1-Click Query Shortcuts)](#phase-45-preset-industry-domain-topics-1-click-query-shortcuts)
+  - [Phase 5: Spaced Repetition (SRS), Daily Gauntlet & Verbal Defense](#phase-5-spaced-repetition-srs-daily-gauntlet--verbal-defense)
 - [Core Analyst Competencies Tested](#core-analyst-competencies-tested)
 - [Power-User Keyboard Shortcuts](#power-user-keyboard-shortcuts)
 - [Tech Stack & Architecture](#tech-stack--architecture)
@@ -211,6 +213,44 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 
 ---
 
+### Phase 5: Spaced Repetition (SRS), Daily Gauntlet & Verbal Defense
+*Transformed ExcelCoach AI from an on-demand test generator into a daily habit-forming, interview-readying learning machine.*
+
+- **1. Spaced Repetition Engine (SRS)**:
+  - **Automated Memory Scheduling**: Implements a simplified SM-2 spaced repetition algorithm that automatically reschedules tasks based on candidate self-ratings (`Hard`, `Fair`, `Easy`).
+  - **Automatic Queue Ingestion**: Any task rated `Hard` or requiring Tier 3 hints automatically enters the candidate's persistent SRS queue (`localStorage["excelcoach_srs_queue"]`).
+  - **Dynamic Interval Progression**:
+    - `Hard`: Resets review interval to 1 day; decreases ease factor.
+    - `Fair`: Progresses interval by 1.5×.
+    - `Easy`: Progresses interval by current ease factor (starting at 2.5×; initial jump from 1 to 7 days).
+    - Graduation threshold: Tasks with intervals exceeding 60 days graduate to "Mastered" status and increment `excelcoach_srs_mastered_count`.
+  - **Interactive SRS Review Mode**: Dedicated review sessions inside the simulated spreadsheet view featuring task instructions, formula draft bar, and instant re-rating controls (`Still Hard 😅`, `Getting It 🙂`, `Got It! ✅`).
+  - **Progress Dashboard SRS Card (`#srs-review-card`)**: Live KPI metrics showing tasks *Due Today*, *In Queue*, and *Mastered*.
+
+- **2. Daily Interview Gauntlet**:
+  - **Habit-Forming Timed Sprint**: One randomized interview-critical question per calendar day designed to be solved under a strict **3-minute countdown timer**.
+  - **Difficulty Setting**: Defaults to `Intermediate` for a fair, consistent daily benchmark. Includes a **"Match my level" toggle** (`#gauntlet-use-my-level`) to calibrate questions to the candidate's active seniority tier (`beginner`, `intermediate`, `advanced`, `expert`).
+  - **AI & Offline Evaluation**: Evaluates answers across 3 key criteria:
+    1. *Correctness (0–5)*: Accuracy of the core formula or technical strategy.
+    2. *Completeness (0–3)*: Edge-case coverage and architectural justification.
+    3. *Interview Quality (0–2)*: Concise, professional verbal phrasing.
+  - **Habit Loop & Streak Telemetry**: Tracks daily consecutive practice (`🔥 X-day streak`), historical scores, and visual Mon–Sun completion dots.
+
+- **3. Verbal Defense Mode (5th Drill Workout Split)**:
+  - **Train the "Why", Not Just the "What"**: Added a 5th workout split alongside Scenario, Glitch, and Skeleton drills.
+  - **20 Pre-Calibrated Defense Scenarios (`VERBAL_DEFENSE_TOPICS`)**: Real-world architectural questions such as *XLOOKUP vs VLOOKUP*, *INDEX/MATCH vs XLOOKUP*, *SUMIFS vs Pivot Tables*, *IFERROR vs IFNA error containment*, *Power Query ETL vs Worksheet Helper Columns*, *DAX Measures vs Calculated Columns*, and *Dynamic Array FILTER vs Legacy formulas*.
+  - **3-Axis AI Scoring Engine**:
+    - *Technical Accuracy (0–3)*: Correctness of spreadsheet logic.
+    - *Clarity & Structure (0–3)*: Understandable by non-technical stakeholders and executive leaders.
+    - *Interview Language Quality (0–4)*: Professional vocabulary, risk mitigation terminology, and auditability focus.
+  - **Verbatim Model Answers**: Delivers 10/10 model phrasing to equip candidates with exact talking points for live interview rooms.
+
+- **4. Daily Activity Log Telemetry**:
+  - Centralized telemetry (`localStorage["excelcoach_activity_log"]`) logging daily tasks completed, hard ratings, SRS reviews, gauntlet challenges, and verbal defense scores.
+  - Provides the structured historical foundation for future GitHub-style contribution heatmaps.
+
+---
+
 ## 🧠 Core Analyst Competencies Tested
 
 ```
@@ -278,6 +318,7 @@ excel-mock-test/
 ├── export.js                # Print styling, test sheet & 1-page cheat sheet
 ├── server.js                # Lightweight Node.js API proxy server
 ├── scripts/
+│   ├── test_phase5.mjs          # 40-test suite verifying SRS, Daily Gauntlet, and Verbal Defense
 │   ├── test_industry_topics.mjs # 16 preset industry domain topic chips test
 │   ├── test_learning_modes.mjs  # 26 automated tests verifying all phases
 │   ├── test_chatbot.mjs         # Chatbot DOM, styles, and offline knowledge tests
@@ -337,24 +378,34 @@ excel-mock-test/
 
 ## 🧪 Automated Testing & Verification
 
-Run the full automated verification test suite from the terminal:
+Run the full automated verification test suites from the terminal:
 
 ```bash
+# Run comprehensive 40-test suite for Phase 5 (SRS, Daily Gauntlet, Verbal Defense)
+node scripts/test_phase5.mjs
+
 # Run comprehensive 26-test suite across Phase 1, 2, and 3
 node scripts/test_learning_modes.mjs
+
+# Run chatbot DOM, offline AI knowledge, and hotkey verification
+node scripts/test_chatbot.mjs
+
+# Run 16 preset industry domain topic shortcuts verification
+node scripts/test_industry_topics.mjs
 
 # Run progressive hint layout and styling verification
 node scripts/test_hint_display.mjs
 ```
 
 **Test Coverage Summary**:
-- Formula Linter rules (quotes, parentheses, brackets, volatile functions, parameter count, exact match).
-- Dataset schema parsing and type inference.
-- Progressive hint generation and fallback behavior.
-- 4-workout split prompt engineering and offline drill banks.
-- Objective hiring scorecard algorithm and strict mode bonuses.
-- 1-page cheat sheet export structure.
-- HTTP server and DOM element integration.
+- **Spaced Repetition (SRS)**: SM-2 interval expansion, reset on hard rating, due-date filtering, and graduation to Mastered.
+- **Daily Gauntlet**: 3-minute sprint countdown, calendar-day streak tracking, difficulty override toggle, and 3-axis scoring.
+- **Verbal Defense Mode**: 20 scenario drills, 3-axis rubric (Accuracy, Clarity, Interview Language), and model answer display.
+- **Daily Activity Log**: Telemetry tracking across tests, SRS reviews, gauntlets, and verbal drills.
+- **Formula Linter**: Quote balancing, parenthesis pairing, bracket nesting, volatile functions, parameter count, exact match.
+- **Dataset Schema**: Header parsing, type inference, and Kaggle/HuggingFace query integration.
+- **Progressive Hint Engine**: Multi-tier vertical hints, syntax blueprints, and 1-click copy.
+- **Hiring Scorecard**: Strict mode bonuses, time penalties, and 1-page printable cheat sheet export.
 
 ---
 

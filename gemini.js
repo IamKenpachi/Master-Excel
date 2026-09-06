@@ -702,8 +702,443 @@ Your Instructions:
 
     // 2. Intelligent Offline Fallback Engine
     return getOfflineChatbotAnswer(trimmedMsg, context);
+  },
+
+  // ----------------------------------------------------
+  // Phase 5: Daily Interview Gauntlet
+  // ----------------------------------------------------
+  async generateDailyGauntlet({ difficulty = "intermediate", weakCategories = [], apiKey, model = DEFAULT_MODEL }) {
+    if (apiKey) {
+      try {
+        const weakList = Array.isArray(weakCategories) && weakCategories.length ? weakCategories.join(", ") : "General";
+        const systemInstruction = `You are an expert Excel Data Analyst interview question designer. Generate ONE challenging but fair daily practice question.
+
+Requirements:
+- Difficulty: ${difficulty}
+- Prefer questions from these weak areas if possible: ${weakList}
+- Question type: rotate among: scenario (explain what formula to use), formula-completion (fill in the blank), glitch-hunt (identify the bug), comparison (choose between approaches)
+- The question must be solvable in under 3 minutes
+- Must be directly relevant to a Data Analyst interview
+
+Return ONLY valid JSON in this exact shape:
+{
+  "question": "...",
+  "expectedAnswer": "...",
+  "explanation": "...",
+  "talkingPoint": "...",
+  "category": "..."
+}
+Do not include markdown code fences, return raw JSON.`;
+
+        const prompt = `Generate today's ${difficulty} interview gauntlet question.`;
+        const res = await callGeminiAPI({
+          model,
+          apiKey,
+          systemInstruction,
+          prompt,
+          schemaType: "application/json"
+        });
+
+        const parsed = cleanAndParseJSON(res.text);
+        if (parsed && parsed.question) {
+          return {
+            question: parsed.question,
+            expectedAnswer: parsed.expectedAnswer || "",
+            explanation: parsed.explanation || "",
+            talkingPoint: parsed.talkingPoint || "",
+            category: parsed.category || "General",
+            difficulty
+          };
+        }
+      } catch (err) {
+        console.warn("Gemini gauntlet generation failed, using offline fallback:", err);
+      }
+    }
+
+    // Offline fallback: Rotate through 10 curated questions based on day of month
+    const day = new Date().getDate();
+    const fallback = OFFLINE_GAUNTLET_QUESTIONS[(day - 1) % OFFLINE_GAUNTLET_QUESTIONS.length];
+    return { ...fallback, difficulty };
+  },
+
+  async gradeGauntletAnswer({ question, expectedAnswer, userAnswer, apiKey, model = DEFAULT_MODEL }) {
+    const trimmedAnswer = (userAnswer || "").trim();
+    if (apiKey && trimmedAnswer) {
+      try {
+        const systemInstruction = `You are an expert Excel interview evaluator. Grade the user's answer to this daily gauntlet question.
+
+Question: ${question}
+Expected Answer: ${expectedAnswer}
+User's Answer: ${trimmedAnswer}
+
+Evaluate on:
+1. Correctness (0–5): Is the core answer right?
+2. Completeness (0–3): Did they cover edge cases or explain "why"?
+3. Interview Quality (0–2): Is the phrasing professional / interview-ready?
+
+Return ONLY valid JSON:
+{
+  "score": 8,
+  "feedback": "...",
+  "correctAnswer": "...",
+  "improvement": "..."
+}
+Do not include markdown code fences, return raw JSON.`;
+
+        const prompt = `Grade this candidate's gauntlet answer.`;
+        const res = await callGeminiAPI({
+          model,
+          apiKey,
+          systemInstruction,
+          prompt,
+          schemaType: "application/json"
+        });
+
+        const parsed = cleanAndParseJSON(res.text);
+        if (parsed && typeof parsed.score === "number") {
+          return {
+            score: Math.min(10, Math.max(0, parsed.score)),
+            feedback: parsed.feedback || "Answer evaluated.",
+            correctAnswer: parsed.correctAnswer || expectedAnswer,
+            improvement: parsed.improvement || "Highlight business impact in your explanation."
+          };
+        }
+      } catch (err) {
+        console.warn("Gemini gauntlet grading failed, using heuristic evaluation:", err);
+      }
+    }
+
+    // Offline heuristic evaluation
+    return evaluateGauntletOffline(question, expectedAnswer, trimmedAnswer);
+  },
+
+  // ----------------------------------------------------
+  // Phase 5: Verbal Defense Mode
+  // ----------------------------------------------------
+  async generateVerbalDefenseDrill({ topic = "XLOOKUP vs VLOOKUP", category = "lookup", difficulty = "intermediate", apiKey, model = DEFAULT_MODEL }) {
+    if (apiKey) {
+      try {
+        const systemInstruction = `You are an expert Data Analyst interview coach. Create ONE verbal defense drill scenario.
+
+The user is preparing to explain their formula choices to a Data Analyst interviewer.
+Topic: ${topic}
+Category: ${category}
+Difficulty: ${difficulty}
+
+Types of verbal defense drills (pick one):
+1. Tool Comparison: "Explain why you'd use XLOOKUP over VLOOKUP"
+2. Error Handling: "Explain how you handle #N/A errors and why IFERROR matters to an interviewer"
+3. Approach Justification: "Explain why you'd use Power Query instead of manual copy-paste for monthly reports"
+4. Trade-off Discussion: "When would you choose INDEX/MATCH over XLOOKUP?"
+5. Non-Technical Explanation: "Explain SUMIFS to a non-technical manager who just wants the number"
+
+Return ONLY valid JSON:
+{
+  "scenario": "...",
+  "prompt": "...",
+  "context": "...",
+  "difficulty": "${difficulty}",
+  "category": "${category}"
+}
+Do not include markdown code fences, return raw JSON.`;
+
+        const prompt = `Generate a verbal defense drill scenario for "${topic}".`;
+        const res = await callGeminiAPI({
+          model,
+          apiKey,
+          systemInstruction,
+          prompt,
+          schemaType: "application/json"
+        });
+
+        const parsed = cleanAndParseJSON(res.text);
+        if (parsed && parsed.prompt) {
+          return {
+            scenario: parsed.scenario || `An interviewer asks you to defend your solution for ${topic}.`,
+            prompt: parsed.prompt,
+            context: parsed.context || parsed.scenario || `Interview defense context for ${topic}.`,
+            difficulty,
+            category
+          };
+        }
+      } catch (err) {
+        console.warn("Gemini verbal defense drill generation failed, using offline fallback:", err);
+      }
+    }
+
+    // Offline fallback
+    const matched = OFFLINE_VERBAL_DRILLS.find(d => d.topic.toLowerCase().includes((topic || "").toLowerCase()));
+    const drill = matched || OFFLINE_VERBAL_DRILLS[Math.floor(Math.random() * OFFLINE_VERBAL_DRILLS.length)];
+    return {
+      scenario: drill.scenario,
+      prompt: drill.prompt,
+      context: drill.context,
+      difficulty,
+      category
+    };
+  },
+
+  async gradeVerbalDefense({ question, context, userResponse, apiKey, model = DEFAULT_MODEL }) {
+    const trimmed = (userResponse || "").trim();
+    if (apiKey && trimmed) {
+      try {
+        const systemInstruction = `You are an expert Data Analyst interview evaluator grading a verbal defense response.
+
+Scenario: ${context}
+Question asked: ${question}
+User's response: ${trimmed}
+
+Grade on these 3 axes:
+1. Technical Accuracy (0–3): Is the explanation technically correct?
+2. Clarity (0–3): Would a non-technical interviewer understand this?
+3. Interview Language Quality (0–4): Is the phrasing professional and interview-ready? Uses correct terminology? Avoids vague phrases like "it's better" without explaining why?
+
+Also provide:
+- feedback: Coaching notes on what was good and what needs work
+- improvedPhrase: A model answer that would score 10/10 (2–4 sentences)
+
+Return ONLY valid JSON:
+{
+  "scores": { "accuracy": 2, "clarity": 3, "interviewLanguage": 3 },
+  "total": 8,
+  "feedback": "...",
+  "improvedPhrase": "..."
+}
+Do not include markdown code fences, return raw JSON.`;
+
+        const prompt = `Evaluate candidate's verbal defense response.`;
+        const res = await callGeminiAPI({
+          model,
+          apiKey,
+          systemInstruction,
+          prompt,
+          schemaType: "application/json"
+        });
+
+        const parsed = cleanAndParseJSON(res.text);
+        if (parsed && parsed.scores) {
+          const acc = Math.min(3, Math.max(0, parsed.scores.accuracy || 0));
+          const cla = Math.min(3, Math.max(0, parsed.scores.clarity || 0));
+          const lang = Math.min(4, Math.max(0, parsed.scores.interviewLanguage || 0));
+          const total = typeof parsed.total === "number" ? Math.min(10, Math.max(0, parsed.total)) : (acc + cla + lang);
+          return {
+            scores: { accuracy: acc, clarity: cla, interviewLanguage: lang },
+            total,
+            feedback: parsed.feedback || "Well defended response.",
+            improvedPhrase: parsed.improvedPhrase || "Directly linking technical properties to business risk mitigation creates an executive-ready defense."
+          };
+        }
+      } catch (err) {
+        console.warn("Gemini verbal defense grading failed, using offline fallback:", err);
+      }
+    }
+
+    return evaluateVerbalDefenseOffline(question, context, trimmed);
   }
 };
+
+// ----------------------------------------------------
+// Offline Fallback Pools & Heuristic Graders
+// ----------------------------------------------------
+
+const OFFLINE_GAUNTLET_QUESTIONS = [
+  {
+    category: "Lookup & Reference",
+    question: "A financial model using VLOOKUP suddenly returns incorrect numbers after an analyst added a 'Region Code' column in column C. Why did this happen, and what formula completely prevents this failure?",
+    expectedAnswer: "=XLOOKUP(lookup_value, lookup_col, return_col) or INDEX/MATCH",
+    explanation: "VLOOKUP relies on a hardcoded column index integer (e.g. 4). Inserting column C shifted the columns to the right, causing VLOOKUP to read the wrong column. XLOOKUP uses direct range references that adjust dynamically without breaking.",
+    talkingPoint: "I advise XLOOKUP in corporate models because static column indexing creates catastrophic silent errors whenever sheets are edited or expanded."
+  },
+  {
+    category: "Data Aggregation",
+    question: "What is the crucial syntax difference between SUMIF and SUMIFS regarding the position of the sum range, and what error occurs if ranges have mismatched dimensions?",
+    expectedAnswer: "In SUMIF, sum_range is optional and 3rd. In SUMIFS, sum_range is 1st and required. Mismatched dimensions cause #VALUE!.",
+    explanation: "SUMIFS requires the sum_range as the very first argument, followed by criteria pairs. If the sum_range and criteria_ranges have differing numbers of rows or columns, Excel returns a #VALUE! error.",
+    talkingPoint: "I always standardize on SUMIFS even for single conditions to maintain consistent parameter order across all team formulas."
+  },
+  {
+    category: "Error Handling",
+    question: "Why do senior Excel modelers consider wrapping an entire complex formula in '=IFERROR(..., \"\")' an anti-pattern, and what should you do instead?",
+    expectedAnswer: "It masks legitimate bugs like #REF!, typos, and circular references. Use XLOOKUP's [if_not_found] parameter or IF(ISNA(...)).",
+    explanation: "IFERROR catches all errors indiscriminately, turning formula typos, syntax breaks, and deleted column refs into silent blank cells. Targeted error handling preserves operational integrity.",
+    talkingPoint: "Blanket IFERROR is dangerous in financial models because it hides systemic formula breakage under innocent-looking blank cells."
+  },
+  {
+    category: "Modern Dynamic Arrays",
+    question: "What causes a #SPILL! error when using the FILTER or UNIQUE function, and how do you resolve it in an official Excel Table?",
+    expectedAnswer: "Obstructed target cells or trying to spill inside an Excel Table (ListObject). Clear obstructing cells or place formula outside the table.",
+    explanation: "Excel Tables cannot contain dynamic array formulas that spill vertically. Dynamic arrays must be placed in standard worksheet ranges with unobstructed space below.",
+    talkingPoint: "I pair Excel Tables for reliable structured data ingestion with Dynamic Arrays on separate presentation sheets to feed KPI dashboards."
+  },
+  {
+    category: "Data Hygiene",
+    question: "A lookup on customer IDs returns #N/A even though the ID visibly appears in both tables. Name the two most frequent root causes and how to diagnose them.",
+    expectedAnswer: "Data type mismatch (Text vs Number) and hidden whitespace or non-breaking spaces (CHAR(160)).",
+    explanation: "Excel treats text '101' and integer 101 as non-equal. Also, web scraping often imports non-breaking space CHAR(160) which regular TRIM does not remove.",
+    talkingPoint: "I sanitize raw imports with TRIM(CLEAN(SUBSTITUTE(cell, CHAR(160), ' '))) and check ISNUMBER() before assuming lookup failure."
+  },
+  {
+    category: "Lookup & Reference",
+    question: "How do you construct a two-way matrix lookup in Excel using INDEX and MATCH to dynamically search across both rows and columns?",
+    expectedAnswer: "=INDEX(DataRange, MATCH(RowVal, RowHeaders, 0), MATCH(ColVal, ColHeaders, 0))",
+    explanation: "The first MATCH provides the row offset, and the second MATCH provides the column offset within the two-dimensional DataRange.",
+    talkingPoint: "Two-way INDEX/MATCH turns static crosstabs into automated matrix search engines without needing unpivoting."
+  },
+  {
+    category: "Power Query ETL",
+    question: "When monthly financial reports arrive as wide pivot summaries with months as column headers, what Power Query operation prepares this data for analysis, and why?",
+    expectedAnswer: "Unpivot Columns (or Unpivot Other Columns) to convert wide data into tall attribute-value pairs.",
+    explanation: "Wide tables violate first normal form. Unpivoting creates a standardized 'Month' attribute and 'Amount' metric, allowing Pivot Tables to slice and aggregate seamlessly.",
+    talkingPoint: "Unpivoting in Power Query is the prerequisite for any automated star schema or executive dashboard."
+  },
+  {
+    category: "Data Modeling & DAX",
+    question: "In Power Pivot or Power BI, when should you create a Calculated Column versus a DAX Measure, and what is the memory impact?",
+    expectedAnswer: "Calculated Columns compute row-by-row during refresh and consume RAM. Measures compute dynamically on filter context with zero storage footprint.",
+    explanation: "Calculated columns increase file size and RAM usage. Use them only when you need row-level categorization for slicers. Use measures for all numeric aggregations.",
+    talkingPoint: "My rule: Slicers and row labels get Calculated Columns; numeric KPI values must be Measures to preserve engine performance."
+  },
+  {
+    category: "Modern Dynamic Arrays",
+    question: "How do you filter a dataset for multiple conditions using the FILTER function with AND logic versus OR logic?",
+    expectedAnswer: "Multiply conditions for AND: (ColA = \"X\") * (ColB > 10). Add conditions for OR: (ColA = \"X\") + (ColB > 10).",
+    explanation: "Excel boolean logic in dynamic arrays uses multiplication for boolean intersection (AND) and addition for boolean union (OR).",
+    talkingPoint: "Using boolean algebra inside FILTER allows complex compound segmentation without nested helper columns."
+  },
+  {
+    category: "Formulas & Fundamentals",
+    question: "Explain the difference between $A$1, $A1, and A$1 when copying a formula across rows and down columns.",
+    expectedAnswer: "$A$1 is fully absolute. $A1 locks column A while row changes. A$1 locks row 1 while column changes.",
+    explanation: "The dollar sign locks the coordinate immediately following it. This allows single formulas to populate two-way multiplication tables or matrix lookups.",
+    talkingPoint: "Mastery of mixed references ($A1 vs A$1) is the mark of an efficient modeler who writes a single formula that scales across an entire table."
+  }
+];
+
+const OFFLINE_VERBAL_DRILLS = [
+  {
+    topic: "XLOOKUP vs VLOOKUP",
+    category: "lookup",
+    scenario: "During an interview for a Senior Data Analyst role, the hiring manager asks: 'We have 200 legacy spreadsheets relying on VLOOKUP. Defend why we should migrate new reporting to XLOOKUP and what specific business risks VLOOKUP creates.'",
+    prompt: "Deliver your 2–4 sentence verbal defense explaining why XLOOKUP is architecturally superior and what specific risks VLOOKUP introduces.",
+    context: "Senior analyst candidate defending XLOOKUP adoption to reduce maintenance and column insertion risk."
+  },
+  {
+    topic: "DAX Measures vs Calculated Columns",
+    category: "power_pivot",
+    scenario: "An executive asks why the quarterly financial model file is 85MB and slow to recalculate. They noticed junior analysts added 15 calculated columns.",
+    prompt: "Explain to the executive the memory difference between Calculated Columns and DAX Measures and your remediation plan.",
+    context: "Defending DAX measures to optimize VertiPaq engine memory and workbook performance."
+  },
+  {
+    topic: "Power Query vs Helper Formulas",
+    category: "power_query",
+    scenario: "A finance manager asks: 'Why spend time setting up Power Query when I can just paste the CSV into Excel and drag down helper formulas?'",
+    prompt: "Defend using Power Query ETL over worksheet helper columns, focusing on data immutability and maintenance time.",
+    context: "Defending automated reproducible ETL versus manual worksheet formula dragging."
+  },
+  {
+    topic: "IFERROR vs Targeted Error Handling",
+    category: "logical",
+    scenario: "An interviewer notices you used IF(ISNA(...)) instead of IFERROR in a formula audit and asks: 'Isn't IFERROR simpler and cleaner?'",
+    prompt: "Defend why blanket IFERROR is considered risky in corporate financial models and when targeted handling is required.",
+    context: "Defending error containment discipline over blanket suppression."
+  },
+  {
+    topic: "Dynamic Arrays vs Legacy Formulas",
+    category: "dynamic_arrays",
+    scenario: "Your team lead wants to know why you replaced 5 helper columns and a Pivot Table with a single FILTER + SORT formula.",
+    prompt: "Defend using Modern Dynamic Arrays for agile reporting, noting both benefits and potential collaboration constraints.",
+    context: "Defending dynamic array adoption while acknowledging Office version compatibility."
+  }
+];
+
+function evaluateGauntletOffline(question, expectedAnswer, userAnswer) {
+  if (!userAnswer || userAnswer.length < 5) {
+    return {
+      score: 2,
+      feedback: "Answer is too brief to demonstrate full technical competency to an interviewer.",
+      correctAnswer: expectedAnswer,
+      improvement: "State the specific function name and provide the exact reasoning."
+    };
+  }
+
+  const ansLower = userAnswer.toLowerCase();
+  const expLower = (expectedAnswer || "").toLowerCase();
+
+  // Extract key terms
+  const terms = expLower.split(/[\s,()=]+/).filter(t => t.length > 3);
+  let matchCount = 0;
+  terms.forEach(t => {
+    if (ansLower.includes(t)) matchCount++;
+  });
+
+  const termRatio = terms.length ? matchCount / terms.length : 0.5;
+  let score = 5;
+  if (termRatio > 0.4 || ansLower.includes("xlookup") || ansLower.includes("index") || ansLower.includes("unpivot") || ansLower.includes("measure") || ansLower.includes("sumifs")) {
+    score += 2;
+  }
+  if (userAnswer.length > 50) {
+    score += 1;
+  }
+  if (userAnswer.length > 100) {
+    score += 1;
+  }
+  score = Math.min(9, score);
+
+  return {
+    score,
+    feedback: score >= 7
+      ? "Strong response! You addressed the core technical mechanics clearly."
+      : "Good conceptual start. Ensure you explicitly name the required formula syntax and explain the risk mitigation.",
+    correctAnswer: expectedAnswer,
+    improvement: "In an interview, start with the direct recommendation before elaborating on the rationale."
+  };
+}
+
+function evaluateVerbalDefenseOffline(question, context, userResponse) {
+  const len = (userResponse || "").length;
+  if (len < 20) {
+    return {
+      scores: { accuracy: 1, clarity: 1, interviewLanguage: 1 },
+      total: 3,
+      feedback: "Response is too short. In an interview, deliver a complete 2–4 sentence structured explanation.",
+      improvedPhrase: "I recommend decoupling data preparation into Power Query to preserve the immutability of raw files and automate recurring refreshes without risk of formula corruption."
+    };
+  }
+
+  let acc = 2;
+  let cla = 2;
+  let lang = 2;
+
+  const respLower = userResponse.toLowerCase();
+  const strongVocab = ["because", "prevent", "risk", "performance", "memory", "dynamic", "audit", "scale", "integrity", "resilient", "maintain", "column", "measure"];
+  let vocabHits = 0;
+  strongVocab.forEach(v => {
+    if (respLower.includes(v)) vocabHits++;
+  });
+
+  if (vocabHits >= 2) {
+    acc = 3;
+    lang = 3;
+  }
+  if (vocabHits >= 4) {
+    lang = 4;
+  }
+  if (len >= 80 && len <= 450) {
+    cla = 3;
+  }
+
+  const total = acc + cla + lang;
+
+  return {
+    scores: { accuracy: acc, clarity: cla, interviewLanguage: lang },
+    total,
+    feedback: total >= 8
+      ? "Outstanding verbal defense! You used strong technical justification and communicated risk mitigation clearly."
+      : "Solid explanation. To reach a perfect 10/10, avoid vague terms like 'it's better' and explicitly explain the architectural trade-off.",
+    improvedPhrase: "I advise XLOOKUP because direct range references eliminate silent formula breaks when columns are inserted, and the native default to exact match avoids approximate lookup risks."
+  };
+}
 
 /**
  * Intelligent Offline Response Generator for top Excel Technical Interview Questions

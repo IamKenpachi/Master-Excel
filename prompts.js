@@ -442,3 +442,31 @@ export const INDUSTRY_DOMAINS = [
   { id: "digital_marketing", name: "Digital Marketing", shortName: "Digital Marketing", icon: "📢", query: "Digital Marketing" },
   { id: "education_academia", name: "Education & Academia", shortName: "Education & Academia", icon: "🎓", query: "Education & Academia" }
 ];
+
+/**
+ * Verbal Defense Topics for Interview Simulation
+ * 20 core topics testing candidate's ability to defend their formula/tool decisions
+ */
+export const VERBAL_DEFENSE_TOPICS = [
+  { topic: "XLOOKUP vs VLOOKUP", category: "lookup" },
+  { topic: "INDEX/MATCH vs XLOOKUP", category: "lookup" },
+  { topic: "SUMIFS vs Pivot Tables for multi-condition aggregation", category: "aggregation" },
+  { topic: "IFERROR vs IFNA error containment", category: "logical" },
+  { topic: "Power Query ETL vs manual copy-paste workflows", category: "power_query" },
+  { topic: "When to choose COUNTIFS over COUNTA with filters", category: "aggregation" },
+  { topic: "DAX Measures vs Calculated Columns in Power Pivot", category: "power_pivot" },
+  { topic: "Dynamic Array FILTER vs legacy helper columns", category: "dynamic_arrays" },
+  { topic: "Absolute vs Relative cell referencing strategy", category: "lookup" },
+  { topic: "TRIM and CLEAN vs manual string parsing", category: "cleaning" },
+  { topic: "Nested IF vs IFS vs SWITCH readability", category: "logical" },
+  { topic: "Star Schema modeling vs wide single-table flat files", category: "power_pivot" },
+  { topic: "LET function for formula optimization and readability", category: "dynamic_arrays" },
+  { topic: "Flash Fill vs Text to Columns vs Power Query", category: "cleaning" },
+  { topic: "Calculated Fields vs Source Data adjustments in Pivots", category: "pivots" },
+  { topic: "CHOOSEROWS and CHOOSECOLS in dynamic reporting", category: "dynamic_arrays" },
+  { topic: "Data Validation dropdowns with dependent lists (INDIRECT)", category: "integrity" },
+  { topic: "SUMPRODUCT for weighted averages and two-way lookups", category: "aggregation" },
+  { topic: "CALCULATE and USERELATIONSHIP for inactive dates", category: "power_pivot" },
+  { topic: "Explaining complex formulas to non-technical stakeholders", category: "visualization" }
+];
+

@@ -7,7 +7,12 @@ const STORAGE_KEYS = {
   KAGGLE_KEY: "excelcoach_kaggle_key",
   TEST_HISTORY: "excelcoach_test_history",
   ACTIVE_TEST: "excelcoach_active_test",
-  SETTINGS: "excelcoach_settings"
+  SETTINGS: "excelcoach_settings",
+  SRS_QUEUE: "excelcoach_srs_queue",
+  SRS_MASTERED_COUNT: "excelcoach_srs_mastered_count",
+  DAILY_GAUNTLET: "excelcoach_daily_gauntlet",
+  VERBAL_SCORES: "excelcoach_verbal_scores",
+  ACTIVITY_LOG: "excelcoach_activity_log"
 };
 
 export const AVAILABLE_MODELS = [
@@ -458,5 +463,378 @@ export const Storage = {
       categoryCounts,
       weakCategories
     };
+  },
+
+  // ----------------------------------------------------
+  // Phase 5: Spaced Repetition Engine (SRS)
+  // ----------------------------------------------------
+  getSRSQueue() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.SRS_QUEUE);
+      if (!raw) return { items: [] };
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed.items)) parsed.items = [];
+      return parsed;
+    } catch {
+      return { items: [] };
+    }
+  },
+
+  addToSRSQueue(task, rating, testId) {
+    const today = getTodayIso();
+    const dueDate = addDaysToDate(today, 1);
+    const queue = this.getSRSQueue();
+    const taskNum = task.number || task.id || 1;
+    const taskId = `${testId || "test"}_task${taskNum}`;
+
+    const existingIndex = queue.items.findIndex(item => item.taskId === taskId);
+    if (existingIndex >= 0) {
+      queue.items[existingIndex].dueDate = dueDate;
+      queue.items[existingIndex].lastRating = rating;
+      if (task.instruction) queue.items[existingIndex].taskInstruction = task.instruction;
+      if (task.category) queue.items[existingIndex].category = task.category;
+    } else {
+      queue.items.push({
+        taskId,
+        taskInstruction: task.instruction || "",
+        category: task.category || "General",
+        difficulty: task.difficulty || "intermediate",
+        addedDate: today,
+        dueDate,
+        interval: 1,
+        easeFactor: 2.5,
+        repetitions: 0,
+        lastRating: rating
+      });
+    }
+
+    localStorage.setItem(STORAGE_KEYS.SRS_QUEUE, JSON.stringify(queue));
+    return queue;
+  },
+
+  updateSRSItem(taskId, rating) {
+    const queue = this.getSRSQueue();
+    const itemIndex = queue.items.findIndex(i => i.taskId === taskId);
+    if (itemIndex === -1) return null;
+
+    const item = queue.items[itemIndex];
+    const today = getTodayIso();
+
+    if (rating === "Hard") {
+      item.interval = 1;
+      item.easeFactor = Math.max(1.3, Number((item.easeFactor - 0.2).toFixed(2)));
+    } else if (rating === "Fair") {
+      item.interval = Math.max(1, Math.round(item.interval * 1.5));
+    } else { // "Easy"
+      item.interval = (item.repetitions === 0) ? 7 : Math.round(item.interval * item.easeFactor);
+      item.easeFactor = Math.min(3.5, Number((item.easeFactor + 0.1).toFixed(2)));
+    }
+
+    item.repetitions = (item.repetitions || 0) + 1;
+    item.lastRating = rating;
+
+    if (item.interval > 60) {
+      // Mastered! Remove from queue and increment mastered count
+      queue.items.splice(itemIndex, 1);
+      const mastered = parseInt(localStorage.getItem(STORAGE_KEYS.SRS_MASTERED_COUNT) || "0", 10) || 0;
+      localStorage.setItem(STORAGE_KEYS.SRS_MASTERED_COUNT, String(mastered + 1));
+      localStorage.setItem(STORAGE_KEYS.SRS_QUEUE, JSON.stringify(queue));
+      return { ...item, mastered: true };
+    } else {
+      item.dueDate = addDaysToDate(today, item.interval);
+      localStorage.setItem(STORAGE_KEYS.SRS_QUEUE, JSON.stringify(queue));
+      return item;
+    }
+  },
+
+  getDueSRSItems() {
+    const queue = this.getSRSQueue();
+    const today = getTodayIso();
+    return queue.items
+      .filter(item => item.dueDate <= today)
+      .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+  },
+
+  getSRSStats() {
+    const queue = this.getSRSQueue();
+    const today = getTodayIso();
+    const totalQueued = queue.items.length;
+    const dueToday = queue.items.filter(item => item.dueDate <= today).length;
+    const masteredCount = parseInt(localStorage.getItem(STORAGE_KEYS.SRS_MASTERED_COUNT) || "0", 10) || 0;
+    return { totalQueued, dueToday, masteredCount };
+  },
+
+  // ----------------------------------------------------
+  // Phase 5: Daily Interview Gauntlet
+  // ----------------------------------------------------
+  getGauntletData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.DAILY_GAUNTLET);
+      if (!raw) {
+        return {
+          history: [],
+          currentStreak: 0,
+          longestStreak: 0,
+          lastAnsweredDate: null,
+          difficultyOverride: null
+        };
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed.history)) parsed.history = [];
+      if (typeof parsed.currentStreak !== "number") parsed.currentStreak = 0;
+      if (typeof parsed.longestStreak !== "number") parsed.longestStreak = 0;
+      return parsed;
+    } catch {
+      return {
+        history: [],
+        currentStreak: 0,
+        longestStreak: 0,
+        lastAnsweredDate: null,
+        difficultyOverride: null
+      };
+    }
+  },
+
+  getTodayGauntlet() {
+    const today = getTodayIso();
+    const data = this.getGauntletData();
+    return data.history.find(h => h.date === today) || null;
+  },
+
+  saveGauntletQuestion(questionObj) {
+    const today = getTodayIso();
+    const data = this.getGauntletData();
+    const date = questionObj.date || today;
+    const existing = data.history.find(h => h.date === date);
+    if (existing) return existing;
+
+    const entry = {
+      date,
+      question: questionObj.question || "",
+      expectedAnswer: questionObj.expectedAnswer || "",
+      explanation: questionObj.explanation || "",
+      talkingPoint: questionObj.talkingPoint || "",
+      category: questionObj.category || "General",
+      difficulty: questionObj.difficulty || "intermediate",
+      answered: false,
+      userAnswer: "",
+      score: null,
+      feedback: ""
+    };
+    data.history.push(entry);
+    localStorage.setItem(STORAGE_KEYS.DAILY_GAUNTLET, JSON.stringify(data));
+    return entry;
+  },
+
+  markGauntletAnswered(date, userAnswer, score, feedback) {
+    const today = date || getTodayIso();
+    const data = this.getGauntletData();
+    const entry = data.history.find(h => h.date === today);
+    if (!entry) return null;
+
+    const wasAlreadyAnswered = entry.answered;
+    entry.answered = true;
+    entry.userAnswer = userAnswer || "";
+    entry.score = typeof score === "number" ? score : null;
+    entry.feedback = feedback || "";
+
+    if (!wasAlreadyAnswered) {
+      const lastDate = data.lastAnsweredDate;
+      if (lastDate) {
+        const diffDays = diffCalendarDays(lastDate, today);
+        if (diffDays === 1) {
+          data.currentStreak = (data.currentStreak || 0) + 1;
+        } else if (diffDays === 0) {
+          // Same day, streak already counted or unchanged
+        } else {
+          data.currentStreak = 1;
+        }
+      } else {
+        data.currentStreak = 1;
+      }
+      data.longestStreak = Math.max(data.longestStreak || 0, data.currentStreak);
+      data.lastAnsweredDate = today;
+    }
+
+    localStorage.setItem(STORAGE_KEYS.DAILY_GAUNTLET, JSON.stringify(data));
+    return entry;
+  },
+
+  getGauntletStreak() {
+    const data = this.getGauntletData();
+    return {
+      currentStreak: data.currentStreak || 0,
+      longestStreak: data.longestStreak || 0
+    };
+  },
+
+  setGauntletDifficultyOverride(val) {
+    const data = this.getGauntletData();
+    data.difficultyOverride = val;
+    localStorage.setItem(STORAGE_KEYS.DAILY_GAUNTLET, JSON.stringify(data));
+  },
+
+  // ----------------------------------------------------
+  // Phase 5: Verbal Defense Mode
+  // ----------------------------------------------------
+  getVerbalScores() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.VERBAL_SCORES);
+      if (!raw) return { sessions: [] };
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed.sessions)) parsed.sessions = [];
+      return parsed;
+    } catch {
+      return { sessions: [] };
+    }
+  },
+
+  saveVerbalSession(sessionObj) {
+    const data = this.getVerbalScores();
+    const session = {
+      date: sessionObj.date || getTodayIso(),
+      topic: sessionObj.topic || "General",
+      category: sessionObj.category || "General",
+      question: sessionObj.question || "",
+      userResponse: sessionObj.userResponse || "",
+      scores: sessionObj.scores || { accuracy: 0, clarity: 0, interviewLanguage: 0 },
+      total: sessionObj.total || 0,
+      feedback: sessionObj.feedback || "",
+      improvedPhrase: sessionObj.improvedPhrase || ""
+    };
+    data.sessions.unshift(session);
+    data.sessions = data.sessions.slice(0, 50); // Keep max 50
+    localStorage.setItem(STORAGE_KEYS.VERBAL_SCORES, JSON.stringify(data));
+
+    // Also update activity log
+    this.logActivity(session.date, { verbalSessions: 1, verbalAvgScore: session.total });
+    return session;
+  },
+
+  getVerbalStats() {
+    const data = this.getVerbalScores();
+    const sessions = data.sessions || [];
+    if (!sessions.length) {
+      return { totalSessions: 0, avgScore: 0, topicBreakdown: {}, weakestAxis: null };
+    }
+
+    let sumTotal = 0;
+    const topicBreakdown = {};
+    let sumAccuracy = 0;
+    let sumClarity = 0;
+    let sumLang = 0;
+
+    sessions.forEach(s => {
+      sumTotal += (s.total || 0);
+      const cat = s.category || "General";
+      if (!topicBreakdown[cat]) {
+        topicBreakdown[cat] = { count: 0, totalScore: 0, avgScore: 0 };
+      }
+      topicBreakdown[cat].count++;
+      topicBreakdown[cat].totalScore += (s.total || 0);
+
+      if (s.scores) {
+        sumAccuracy += (s.scores.accuracy || 0);
+        sumClarity += (s.scores.clarity || 0);
+        sumLang += (s.scores.interviewLanguage || 0);
+      }
+    });
+
+    Object.keys(topicBreakdown).forEach(cat => {
+      topicBreakdown[cat].avgScore = Number((topicBreakdown[cat].totalScore / topicBreakdown[cat].count).toFixed(1));
+    });
+
+    const avgScore = Number((sumTotal / sessions.length).toFixed(1));
+
+    // Weakest axis (compare ratio: accuracy/3, clarity/3, interviewLanguage/4)
+    const accRatio = sumAccuracy / (sessions.length * 3);
+    const clarRatio = sumClarity / (sessions.length * 3);
+    const langRatio = sumLang / (sessions.length * 4);
+
+    let weakestAxis = "accuracy";
+    let minRatio = accRatio;
+    if (clarRatio < minRatio) {
+      minRatio = clarRatio;
+      weakestAxis = "clarity";
+    }
+    if (langRatio < minRatio) {
+      weakestAxis = "interviewLanguage";
+    }
+
+    return {
+      totalSessions: sessions.length,
+      avgScore,
+      topicBreakdown,
+      weakestAxis
+    };
+  },
+
+  // ----------------------------------------------------
+  // Phase 5: Daily Activity Log (Heatmap foundation)
+  // ----------------------------------------------------
+  logActivity(date, activityData = {}) {
+    const today = date || getTodayIso();
+    let log = {};
+    try {
+      log = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOG) || "{}");
+    } catch {
+      log = {};
+    }
+    if (!log[today]) {
+      log[today] = {};
+    }
+    const dayEntry = log[today];
+
+    for (const [key, val] of Object.entries(activityData)) {
+      if (typeof val === "boolean") {
+        dayEntry[key] = val;
+      } else if (typeof val === "number") {
+        if (key.includes("Score") || key.includes("Avg")) {
+          dayEntry[key] = val;
+        } else {
+          dayEntry[key] = (dayEntry[key] || 0) + val;
+        }
+      } else {
+        dayEntry[key] = val;
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOG, JSON.stringify(log));
+    return dayEntry;
+  },
+
+  getActivityLog() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOG) || "{}");
+    } catch {
+      return {};
+    }
   }
 };
+
+// Helper date functions
+function getTodayIso() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDate(dateStr, days) {
+  const parts = dateStr.split("-").map(Number);
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setDate(d.getDate() + days);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function diffCalendarDays(dateStr1, dateStr2) {
+  const p1 = dateStr1.split("-").map(Number);
+  const p2 = dateStr2.split("-").map(Number);
+  const d1 = new Date(p1[0], p1[1] - 1, p1[2]);
+  const d2 = new Date(p2[0], p2[1] - 1, p2[2]);
+  return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+}

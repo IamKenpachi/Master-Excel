@@ -1,6 +1,6 @@
 // app.js - Main Application Orchestrator, Router & Interactive Test Controller
 
-import { EXCEL_TOPICS, DIFFICULTY_CONFIG, INDUSTRY_DOMAINS } from "./prompts.js";
+import { EXCEL_TOPICS, DIFFICULTY_CONFIG, INDUSTRY_DOMAINS, VERBAL_DEFENSE_TOPICS } from "./prompts.js";
 import { Storage, DEFAULT_MODEL, SAMPLE_OFFLINE_TEST, AVAILABLE_MODELS, loadEnvConfig } from "./storage.js";
 import { Datasets } from "./datasets.js";
 import { Gemini } from "./gemini.js";
@@ -20,12 +20,19 @@ const state = {
   selectedTaskNum: 1,
   isStrictMode: false,
   isSchemaOpen: false,
-  drillMode: "scenario", // "scenario" | "glitch" | "skeleton" | "verbal"
+  drillMode: "scenario", // "scenario" | "glitch" | "skeleton" | "verbal" | "verbal_defense"
   hintTiers: {}, // { [taskNum]: 0 | 1 | 2 | 3 }
   taskProgress: {}, // { [taskNum]: { done: false, rating: 'Easy'|'Fair'|'Hard', notes: '', candidateFormula: '' } }
   isChatbotOpen: false,
   chatbotHistory: [],
   isChatbotWaiting: false,
+  // Phase 5 State
+  isSRSReviewMode: false,
+  srsQueue: [],
+  srsCurrentIdx: 0,
+  gauntletTimerId: null,
+  gauntletRemainingSecs: 180,
+  currentVerbalDrill: null,
   timer: {
     intervalId: null,
     totalSeconds: 45 * 60,
@@ -45,6 +52,7 @@ if (typeof document !== "undefined") {
     renderIndustryDomainChips();
     renderDrillTopicSelect();
     updateProgressDashboard();
+    checkDailyGauntlet();
 
     // If there's an active test in session, prompt or restore it
     const cachedTest = Storage.getActiveTest();
@@ -79,8 +87,51 @@ function initUI() {
       document.querySelectorAll(".drill-mode-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       state.drillMode = btn.dataset.mode || "scenario";
+      const selectMode = document.getElementById("select-drill-mode");
+      if (selectMode) selectMode.value = state.drillMode;
+
+      const verbalArea = document.getElementById("verbal-defense-area");
+      const qContainer = document.getElementById("drill-questions-container");
+      if (state.drillMode === "verbal_defense") {
+        if (qContainer) qContainer.style.display = "none";
+        if (verbalArea) {
+          verbalArea.classList.remove("hidden");
+          verbalArea.style.display = "block";
+        }
+        generateVerbalDefenseDrill();
+      } else {
+        if (verbalArea) {
+          verbalArea.classList.add("hidden");
+          verbalArea.style.display = "none";
+        }
+      }
     });
   });
+
+  const selectDrillMode = document.getElementById("select-drill-mode");
+  if (selectDrillMode) {
+    selectDrillMode.addEventListener("change", (e) => {
+      state.drillMode = e.target.value;
+      document.querySelectorAll(".drill-mode-btn").forEach(b => {
+        b.classList.toggle("active", b.dataset.mode === state.drillMode);
+      });
+      const verbalArea = document.getElementById("verbal-defense-area");
+      const qContainer = document.getElementById("drill-questions-container");
+      if (state.drillMode === "verbal_defense") {
+        if (qContainer) qContainer.style.display = "none";
+        if (verbalArea) {
+          verbalArea.classList.remove("hidden");
+          verbalArea.style.display = "block";
+        }
+        generateVerbalDefenseDrill();
+      } else {
+        if (verbalArea) {
+          verbalArea.classList.add("hidden");
+          verbalArea.style.display = "none";
+        }
+      }
+    });
+  }
 
   // Strategy select toggle
   const strategySelect = document.getElementById("select-dataset-strategy");
@@ -1286,6 +1337,14 @@ function saveTaskState(taskNum, partial) {
     ...(state.taskProgress[taskNum] || {}),
     ...partial
   };
+  if (partial.rating) {
+    const task = state.currentTest?.test?.tasks?.find(t => (t.number || t.id) === taskNum) || { number: taskNum, instruction: "", category: partial.category || "General" };
+    if (partial.rating === "Hard" || (state.hintTiers[taskNum] || 0) >= 3) {
+      Storage.addToSRSQueue(task, partial.rating, state.currentTest?.test?.id || "test");
+      Storage.logActivity(null, { hardTasksRated: 1 });
+    }
+    Storage.logActivity(null, { tasksCompleted: 1 });
+  }
   if (state.currentTest) {
     state.currentTest.taskProgress = state.taskProgress;
     Storage.setActiveTest(state.currentTest);
@@ -1497,6 +1556,26 @@ function updateProgressDashboard() {
   const warmupTopicEl = document.getElementById("warmup-topic-name");
   if (warmupTopicEl) warmupTopicEl.textContent = weakRec;
 
+  // Phase 5: Spaced Repetition (SRS) stats
+  const srsStats = Storage.getSRSStats();
+  const dueCountEl = document.getElementById("srs-due-count");
+  const totalCountEl = document.getElementById("srs-total-count");
+  const masteredCountEl = document.getElementById("srs-mastered-count");
+  const srsSubtitleEl = document.getElementById("srs-subtitle");
+  const btnStartSRSEl = document.getElementById("btn-start-srs");
+
+  if (dueCountEl) dueCountEl.textContent = srsStats.dueToday;
+  if (totalCountEl) totalCountEl.textContent = srsStats.totalQueued;
+  if (masteredCountEl) masteredCountEl.textContent = srsStats.masteredCount;
+  if (srsSubtitleEl) {
+    srsSubtitleEl.textContent = srsStats.dueToday > 0
+      ? `📚 ${srsStats.dueToday} task${srsStats.dueToday === 1 ? '' : 's'} scheduled for re-review today`
+      : `All caught up! ${srsStats.totalQueued} items in long-term memory queue`;
+  }
+  if (btnStartSRSEl) {
+    btnStartSRSEl.disabled = (srsStats.dueToday === 0);
+  }
+
   // History table
   const historyContainer = document.getElementById("history-table-container");
   const history = Storage.getHistory();
@@ -1695,6 +1774,10 @@ function openHiringManagerScorecard() {
  * Handle Quick Drill Mode
  */
 async function handleStartDrill() {
+  if (state.drillMode === "verbal_defense") {
+    await generateVerbalDefenseDrill();
+    return;
+  }
   const topicName = document.getElementById("select-drill-topic").value;
   const topic = EXCEL_TOPICS.find(t => t.name === topicName) || EXCEL_TOPICS[0];
   const container = document.getElementById("drill-questions-container");
@@ -1962,6 +2045,17 @@ function initEventListeners() {
       updateProgressDashboard();
     }
   });
+
+  // Phase 5: Spaced Repetition (SRS) Review
+  document.getElementById("btn-start-srs")?.addEventListener("click", startSRSReview);
+  document.querySelectorAll(".btn-srs-rate").forEach(btn => {
+    btn.addEventListener("click", () => {
+      handleSRSRating(btn.dataset.rating);
+    });
+  });
+
+  // Phase 5: Verbal Defense Submit
+  document.getElementById("btn-submit-defense")?.addEventListener("click", submitVerbalDefense);
 
   // Settings Modal open/close
   const settingsModal = document.getElementById("modal-settings");
@@ -2410,3 +2504,502 @@ function initChatbotUI() {
     });
   });
 }
+
+// ==========================================================================
+// Phase 5: Spaced Repetition Review (SRS)
+// ==========================================================================
+export function startSRSReview() {
+  const items = Storage.getDueSRSItems();
+  if (!items || items.length === 0) {
+    alert("🎉 No tasks due for review today! Great job staying on top of your practice.");
+    return;
+  }
+  state.isSRSReviewMode = true;
+  state.srsQueue = items;
+  state.srsCurrentIdx = 0;
+
+  switchScreen("screen-test");
+  const overlay = document.getElementById("srs-review-overlay");
+  const mockWin = document.querySelector(".excel-mock-window");
+  if (overlay) {
+    overlay.classList.remove("hidden");
+    overlay.style.display = "block";
+  }
+  if (mockWin) mockWin.style.display = "none";
+
+  renderSRSReviewCard(0);
+}
+
+export function renderSRSReviewCard(idx) {
+  if (!state.srsQueue || idx >= state.srsQueue.length) {
+    finishSRSReview();
+    return;
+  }
+  const item = state.srsQueue[idx];
+  const counterEl = document.getElementById("srs-review-counter");
+  const catEl = document.getElementById("srs-review-category");
+  const instEl = document.getElementById("srs-review-instruction");
+  const inputEl = document.getElementById("srs-formula-input");
+
+  if (counterEl) counterEl.textContent = `Review ${idx + 1} of ${state.srsQueue.length}`;
+  if (catEl) catEl.textContent = item.category || "General";
+  if (instEl) instEl.textContent = item.taskInstruction || "Review this task and attempt the formula.";
+  if (inputEl) {
+    inputEl.value = "";
+    inputEl.focus();
+  }
+}
+
+export function handleSRSRating(rating) {
+  if (!state.srsQueue || state.srsCurrentIdx >= state.srsQueue.length) return;
+  const item = state.srsQueue[state.srsCurrentIdx];
+  Storage.updateSRSItem(item.taskId, rating);
+  state.srsCurrentIdx++;
+  if (state.srsCurrentIdx < state.srsQueue.length) {
+    renderSRSReviewCard(state.srsCurrentIdx);
+  } else {
+    finishSRSReview();
+  }
+}
+
+export function finishSRSReview() {
+  const count = state.srsQueue ? state.srsQueue.length : 0;
+  state.isSRSReviewMode = false;
+  state.srsQueue = [];
+  state.srsCurrentIdx = 0;
+
+  const overlay = document.getElementById("srs-review-overlay");
+  const mockWin = document.querySelector(".excel-mock-window");
+  if (overlay) {
+    overlay.classList.add("hidden");
+    overlay.style.display = "none";
+  }
+  if (mockWin) mockWin.style.display = "block";
+
+  Storage.logActivity(null, { srsReviewed: count });
+  updateProgressDashboard();
+  switchScreen("screen-progress");
+  alert(`✅ Spaced Repetition Review Complete!\nYou reviewed ${count} task${count === 1 ? '' : 's'}. Next review intervals have been scheduled.`);
+}
+
+// ==========================================================================
+// Phase 5: Daily Interview Gauntlet
+// ==========================================================================
+export async function checkDailyGauntlet() {
+  const data = Storage.getGauntletData();
+  const streakEl = document.getElementById("gauntlet-streak");
+  if (streakEl) {
+    streakEl.textContent = `🔥 ${data.currentStreak || 0}-day streak`;
+  }
+
+  const toggle = document.getElementById("gauntlet-use-my-level");
+  if (toggle) {
+    toggle.checked = (data.difficultyOverride === "user");
+    toggle.onchange = async (e) => {
+      const overrideVal = e.target.checked ? "user" : null;
+      Storage.setGauntletDifficultyOverride(overrideVal);
+      const todayQ = Storage.getTodayGauntlet();
+      if (!todayQ) {
+        await generateAndRenderTodayGauntlet();
+      } else {
+        const body = document.getElementById("gauntlet-body");
+        const existingNote = document.getElementById("gauntlet-diff-note");
+        if (!existingNote && body) {
+          const note = document.createElement("div");
+          note.id = "gauntlet-diff-note";
+          note.style.cssText = "font-size:0.8rem; color:var(--accent-amber); margin-top:0.5rem;";
+          note.textContent = "ℹ️ Difficulty preference saved. It will apply starting from tomorrow's gauntlet.";
+          body.appendChild(note);
+        }
+      }
+    };
+  }
+
+  const today = Storage.getTodayGauntlet();
+  if (today && today.answered) {
+    renderGauntletComplete(today, data);
+  } else if (today) {
+    renderGauntletCard(today);
+  } else {
+    await generateAndRenderTodayGauntlet();
+  }
+}
+
+export async function generateAndRenderTodayGauntlet() {
+  const data = Storage.getGauntletData();
+  const difficulty = data.difficultyOverride === "user" ? (state.difficulty || "intermediate") : "intermediate";
+  const body = document.getElementById("gauntlet-body");
+  if (body) {
+    body.innerHTML = `<div class="gauntlet-loading" style="color:var(--text-muted); font-size:0.9rem;">⚡ Gemini is curating today's timed interview gauntlet question (${difficulty})...</div>`;
+  }
+
+  const apiKey = Storage.getGeminiKey();
+  const model = Storage.getGeminiModel();
+  const stats = Storage.getProgressStats();
+  const weakCats = Object.keys(stats.weakCategories || {});
+
+  try {
+    const questionObj = await Gemini.generateDailyGauntlet({
+      difficulty,
+      weakCategories: weakCats,
+      apiKey,
+      model
+    });
+    const saved = Storage.saveGauntletQuestion(questionObj);
+    renderGauntletCard(saved);
+  } catch (err) {
+    console.error("Gauntlet generation error:", err);
+    if (body) {
+      body.innerHTML = `<p style="color:var(--accent-rose);">Failed to load today's question. Click to retry.</p><button class="btn btn-sm btn-secondary" id="btn-retry-gauntlet">Retry</button>`;
+      document.getElementById("btn-retry-gauntlet")?.addEventListener("click", generateAndRenderTodayGauntlet);
+    }
+  }
+}
+
+export function renderGauntletCard(entry) {
+  const body = document.getElementById("gauntlet-body");
+  if (!body) return;
+
+  if (state.gauntletTimerId) {
+    clearInterval(state.gauntletTimerId);
+    state.gauntletTimerId = null;
+  }
+  state.gauntletRemainingSecs = 180;
+
+  body.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <span class="brand-badge" style="background:rgba(245,158,11,0.15); color:var(--accent-amber); border-color:rgba(245,158,11,0.3);">
+        ${escapeHtml(entry.category || "General")} • ${escapeHtml(entry.difficulty || "Intermediate")}
+      </span>
+      <div class="gauntlet-timer" id="gauntlet-timer-clock">⏱️ 03:00</div>
+    </div>
+    <div class="gauntlet-question">${escapeHtml(entry.question)}</div>
+    <textarea id="gauntlet-answer-input" class="gauntlet-answer-area" placeholder="Type your answer or formula solution here..."></textarea>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+      <span style="font-size:0.8rem; color:var(--text-muted);">💡 3-minute timed sprint — simulate high-pressure screening</span>
+      <button class="btn btn-primary" id="btn-submit-gauntlet" style="background:linear-gradient(135deg, #F59E0B 0%, #D97706 100%); border-color:#F59E0B;">
+        Submit Answer ⚡
+      </button>
+    </div>
+  `;
+
+  const timerClock = document.getElementById("gauntlet-timer-clock");
+  state.gauntletTimerId = setInterval(() => {
+    state.gauntletRemainingSecs--;
+    const mins = String(Math.floor(state.gauntletRemainingSecs / 60)).padStart(2, "0");
+    const secs = String(state.gauntletRemainingSecs % 60).padStart(2, "0");
+    if (timerClock) {
+      timerClock.textContent = `⏱️ ${mins}:${secs}`;
+      if (state.gauntletRemainingSecs <= 30) {
+        timerClock.classList.add("urgent");
+      }
+    }
+    if (state.gauntletRemainingSecs <= 0) {
+      clearInterval(state.gauntletTimerId);
+      state.gauntletTimerId = null;
+      submitGauntletAnswer(entry);
+    }
+  }, 1000);
+
+  document.getElementById("btn-submit-gauntlet")?.addEventListener("click", () => {
+    submitGauntletAnswer(entry);
+  });
+}
+
+export async function submitGauntletAnswer(entry) {
+  if (state.gauntletTimerId) {
+    clearInterval(state.gauntletTimerId);
+    state.gauntletTimerId = null;
+  }
+  const inputEl = document.getElementById("gauntlet-answer-input");
+  const userAnswer = inputEl ? inputEl.value : "";
+  const submitBtn = document.getElementById("btn-submit-gauntlet");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Grading with AI...";
+  }
+
+  const apiKey = Storage.getGeminiKey();
+  const model = Storage.getGeminiModel();
+
+  try {
+    const result = await Gemini.gradeGauntletAnswer({
+      question: entry.question,
+      expectedAnswer: entry.expectedAnswer,
+      userAnswer,
+      apiKey,
+      model
+    });
+
+    Storage.markGauntletAnswered(entry.date, userAnswer, result.score, result.feedback);
+    Storage.logActivity(null, { gauntletAnswered: true, gauntletScore: result.score });
+
+    const streakData = Storage.getGauntletStreak();
+    const streakEl = document.getElementById("gauntlet-streak");
+    if (streakEl) {
+      streakEl.textContent = `🔥 ${streakData.currentStreak}-day streak`;
+    }
+
+    renderGauntletFeedback(result, entry);
+  } catch (err) {
+    console.error("Gauntlet grading failed:", err);
+  }
+}
+
+export function renderGauntletFeedback(result, entry) {
+  const body = document.getElementById("gauntlet-body");
+  if (!body) return;
+
+  const scoreClass = result.score >= 8 ? "high" : (result.score >= 5 ? "mid" : "low");
+
+  body.innerHTML = `
+    <div class="gauntlet-feedback-card">
+      <div class="gauntlet-score-ring">
+        <div class="gauntlet-score-badge ${scoreClass}">
+          ${result.score}<span style="font-size:1rem; color:var(--text-muted);">/10</span>
+        </div>
+        <div>
+          <h4 style="font-size:1.05rem; font-weight:700; color:var(--text-bright); margin-bottom:0.25rem;">
+            ${result.score >= 8 ? "🎯 Outstanding!" : (result.score >= 5 ? "👍 Good Answer" : "📚 Needs Work")}
+          </h4>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin:0;">
+            ${escapeHtml(result.feedback)}
+          </p>
+        </div>
+      </div>
+
+      <div style="background:#090D16; border:1px solid var(--glass-border); border-radius:8px; padding:0.85rem 1rem; margin-bottom:0.85rem;">
+        <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; display:block; margin-bottom:0.3rem;">Expected Answer:</span>
+        <code style="color:#38BDF8; font-family:monospace; font-size:0.92rem;">${escapeHtml(result.correctAnswer || entry.expectedAnswer)}</code>
+      </div>
+
+      ${result.improvement ? `
+        <div style="background:rgba(245,158,11,0.1); border-left:3px solid var(--accent-amber); padding:0.75rem 1rem; border-radius:0 6px 6px 0; margin-bottom:1rem; font-size:0.85rem; color:#FDE68A;">
+          <strong>💡 Interview Edge:</strong> ${escapeHtml(result.improvement)}
+        </div>
+      ` : ""}
+
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; border-top:1px solid rgba(255,255,255,0.08); padding-top:0.85rem;">
+        <span style="font-size:0.82rem; color:var(--text-muted);">Streak updated! Return tomorrow for the next challenge.</span>
+        <div class="gauntlet-week-dots">
+          ${renderGauntletWeekDots()}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderGauntletComplete(entry, data) {
+  const body = document.getElementById("gauntlet-body");
+  if (!body) return;
+
+  body.innerHTML = `
+    <div style="text-align:center; padding:1.25rem 1rem;">
+      <div style="font-size:2rem; margin-bottom:0.4rem;">🎉</div>
+      <h4 style="font-size:1.15rem; font-weight:700; color:var(--text-bright); margin-bottom:0.25rem;">
+        Today's Interview Gauntlet Completed!
+      </h4>
+      <p style="font-size:0.85rem; color:var(--text-secondary); max-width:480px; margin:0 auto 1rem;">
+        You scored <strong>${entry.score ?? "10"}/10</strong> on today's challenge. Your current streak is <strong>${data.currentStreak || 1} day${(data.currentStreak || 1) === 1 ? '' : 's'}</strong>!
+      </p>
+      <div style="display:flex; justify-content:center; gap:0.5rem; margin-bottom:0.75rem;">
+        ${renderGauntletWeekDots()}
+      </div>
+      <span style="font-size:0.78rem; color:var(--text-muted);">Come back tomorrow for your next timed interview sprint!</span>
+    </div>
+  `;
+}
+
+export function renderGauntletWeekDots() {
+  const days = ["M", "T", "W", "T", "F", "S", "S"];
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  return days.map((day, i) => {
+    const isDone = i <= todayIdx;
+    return `<div class="gauntlet-week-dot ${isDone ? 'done' : ''}" title="${day}">${isDone ? '✓' : day}</div>`;
+  }).join("");
+}
+
+// ==========================================================================
+// Phase 5: Verbal Defense Mode
+// ==========================================================================
+export async function generateVerbalDefenseDrill() {
+  const topicSelect = document.getElementById("select-drill-topic");
+  const selectedName = topicSelect ? topicSelect.value : "";
+  
+  const matched = VERBAL_DEFENSE_TOPICS.find(t => t.topic.toLowerCase().includes(selectedName.toLowerCase())) 
+    || VERBAL_DEFENSE_TOPICS[Math.floor(Math.random() * VERBAL_DEFENSE_TOPICS.length)];
+
+  const area = document.getElementById("verbal-defense-area");
+  const qContainer = document.getElementById("drill-questions-container");
+  if (qContainer) qContainer.style.display = "none";
+  if (area) {
+    area.classList.remove("hidden");
+    area.style.display = "block";
+  }
+
+  const promptEl = document.getElementById("verbal-prompt");
+  const contextEl = document.getElementById("verbal-context-panel");
+  if (promptEl) promptEl.textContent = "Loading verbal scenario from Gemini...";
+  if (contextEl) contextEl.textContent = "Consulting interview coach...";
+
+  const apiKey = Storage.getGeminiKey();
+  const model = Storage.getGeminiModel();
+
+  try {
+    const drillObj = await Gemini.generateVerbalDefenseDrill({
+      topic: matched.topic,
+      category: matched.category,
+      difficulty: state.difficulty,
+      apiKey,
+      model
+    });
+    renderVerbalDefenseCard(drillObj);
+  } catch (err) {
+    console.error("Verbal defense drill error:", err);
+  }
+}
+
+export function renderVerbalDefenseCard(drillObj) {
+  state.currentVerbalDrill = drillObj;
+  const contextEl = document.getElementById("verbal-context-panel");
+  const promptEl = document.getElementById("verbal-prompt");
+  const inputEl = document.getElementById("verbal-defense-input");
+  const charCountEl = document.getElementById("verbal-char-count");
+  const submitBtn = document.getElementById("btn-submit-defense");
+  const feedbackArea = document.getElementById("verbal-feedback-area");
+
+  if (contextEl) contextEl.textContent = drillObj.context || drillObj.scenario;
+  if (promptEl) promptEl.textContent = drillObj.prompt;
+  if (inputEl) {
+    inputEl.value = "";
+    inputEl.disabled = false;
+  }
+  if (charCountEl) charCountEl.textContent = "0";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submit Defense →";
+  }
+  if (feedbackArea) {
+    feedbackArea.classList.add("hidden");
+    feedbackArea.style.display = "none";
+    feedbackArea.innerHTML = "";
+  }
+
+  if (inputEl) {
+    inputEl.oninput = (e) => {
+      const len = e.target.value.length;
+      if (charCountEl) charCountEl.textContent = len;
+      if (submitBtn) {
+        submitBtn.disabled = (len < 20);
+      }
+    };
+  }
+}
+
+export async function submitVerbalDefense() {
+  if (!state.currentVerbalDrill) return;
+  const inputEl = document.getElementById("verbal-defense-input");
+  const userResponse = inputEl ? inputEl.value.trim() : "";
+  if (userResponse.length < 20) return;
+
+  const submitBtn = document.getElementById("btn-submit-defense");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Grading with Gemini...";
+  }
+
+  const apiKey = Storage.getGeminiKey();
+  const model = Storage.getGeminiModel();
+
+  try {
+    const result = await Gemini.gradeVerbalDefense({
+      question: state.currentVerbalDrill.prompt,
+      context: state.currentVerbalDrill.context || state.currentVerbalDrill.scenario,
+      userResponse,
+      apiKey,
+      model
+    });
+
+    Storage.saveVerbalSession({
+      topic: state.currentVerbalDrill.topic || "Verbal Defense",
+      category: state.currentVerbalDrill.category || "lookup",
+      question: state.currentVerbalDrill.prompt,
+      userResponse,
+      scores: result.scores,
+      total: result.total,
+      feedback: result.feedback,
+      improvedPhrase: result.improvedPhrase
+    });
+
+    renderVerbalDefenseFeedback(result, state.currentVerbalDrill);
+  } catch (err) {
+    console.error("Verbal defense submission failed:", err);
+  }
+}
+
+export function renderVerbalDefenseFeedback(result, drillObj) {
+  const feedbackArea = document.getElementById("verbal-feedback-area");
+  if (!feedbackArea) return;
+
+  const scores = result.scores || { accuracy: 2, clarity: 2, interviewLanguage: 3 };
+  const total = typeof result.total === "number" ? result.total : (scores.accuracy + scores.clarity + scores.interviewLanguage);
+  const badgeClass = total >= 8 ? "high" : (total >= 5 ? "mid" : "low");
+
+  feedbackArea.classList.remove("hidden");
+  feedbackArea.style.display = "block";
+  feedbackArea.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+      <h3 style="font-size:1.15rem; font-weight:700; color:var(--text-bright);">Interview Evaluation Breakdown</h3>
+      <div class="verbal-score-badge gauntlet-score-badge ${badgeClass}">
+        ${total}<span style="font-size:0.9rem; color:var(--text-muted);">/10</span>
+      </div>
+    </div>
+
+    <div class="verbal-score-row">
+      <div class="verbal-score-card">
+        <h4>Technical Accuracy</h4>
+        <div class="score">${scores.accuracy}<span style="font-size:0.8rem; color:var(--text-muted);">/3</span></div>
+        <div class="verbal-score-bar">
+          <div class="verbal-score-bar-fill" style="width: ${(scores.accuracy / 3) * 100}%;"></div>
+        </div>
+      </div>
+      <div class="verbal-score-card">
+        <h4>Clarity & Structure</h4>
+        <div class="score">${scores.clarity}<span style="font-size:0.8rem; color:var(--text-muted);">/3</span></div>
+        <div class="verbal-score-bar">
+          <div class="verbal-score-bar-fill" style="width: ${(scores.clarity / 3) * 100}%;"></div>
+        </div>
+      </div>
+      <div class="verbal-score-card">
+        <h4>Interview Language</h4>
+        <div class="score">${scores.interviewLanguage}<span style="font-size:0.8rem; color:var(--text-muted);">/4</span></div>
+        <div class="verbal-score-bar">
+          <div class="verbal-score-bar-fill" style="width: ${(scores.interviewLanguage / 4) * 100}%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.03); border:1px solid var(--glass-border); border-radius:8px; padding:1rem; margin-bottom:1rem;">
+      <strong style="color:var(--accent-cyan); font-size:0.85rem; display:block; margin-bottom:0.35rem;">Evaluation Feedback:</strong>
+      <p style="color:var(--text-primary); font-size:0.92rem; margin:0; line-height:1.55;">
+        ${escapeHtml(result.feedback)}
+      </p>
+    </div>
+
+    <div class="verbal-model-answer">
+      <h4>✨ Model Answer (10/10 Interview Response):</h4>
+      <p>${escapeHtml(result.improvedPhrase)}</p>
+    </div>
+
+    <div style="margin-top:1.25rem; text-align:right;">
+      <button class="btn btn-secondary" id="btn-verbal-next" style="margin-right:0.5rem;">
+        Practice Another Scenario 🔄
+      </button>
+    </div>
+  `;
+
+  document.getElementById("btn-verbal-next")?.addEventListener("click", () => {
+    generateVerbalDefenseDrill();
+  });
+}
+

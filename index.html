@@ -221,6 +221,24 @@
             </div>
           </div>
 
+          <!-- Daily Gauntlet Card -->
+          <div class="gauntlet-card" id="gauntlet-card">
+            <div class="gauntlet-header">
+              <div class="gauntlet-badge">⚡ DAILY GAUNTLET</div>
+              <div class="gauntlet-header-right">
+                <!-- Difficulty toggle: defaults to Intermediate -->
+                <label class="gauntlet-diff-toggle" title="Gauntlet difficulty">
+                  <input type="checkbox" id="gauntlet-use-my-level" />
+                  <span class="gauntlet-diff-label">Match my level</span>
+                </label>
+                <div class="gauntlet-streak" id="gauntlet-streak">🔥 0-day streak</div>
+              </div>
+            </div>
+            <div class="gauntlet-body" id="gauntlet-body">
+              <div class="gauntlet-loading">Loading today's question...</div>
+            </div>
+          </div>
+
           <!-- Generator Action Bar -->
           <div class="generate-actions">
             <div>
@@ -286,6 +304,24 @@
             <button class="btn btn-primary" id="btn-submit-test">
               <span>🎯</span> Review Answer Key
             </button>
+          </div>
+        </div>
+
+        <!-- SRS Review Overlay (rendered inside #screen-test when isSRSReviewMode = true) -->
+        <div class="srs-review-overlay hidden" id="srs-review-overlay" style="display: none;">
+          <div class="srs-review-header">
+            <span class="srs-review-counter" id="srs-review-counter">Review 1 of 5</span>
+            <span class="srs-review-category" id="srs-review-category">Aggregations</span>
+          </div>
+          <div class="srs-review-instruction" id="srs-review-instruction"></div>
+          <div class="srs-review-formula-bar">
+            <label for="srs-formula-input">Your formula attempt:</label>
+            <input type="text" id="srs-formula-input" placeholder="=FORMULA(...)" />
+          </div>
+          <div class="srs-review-rating-row">
+            <button type="button" class="btn-srs-rate hard" data-rating="Hard">Still Hard 😅</button>
+            <button type="button" class="btn-srs-rate fair" data-rating="Fair">Getting It 🙂</button>
+            <button type="button" class="btn-srs-rate easy" data-rating="Easy">Got It! ✅</button>
           </div>
         </div>
 
@@ -429,7 +465,7 @@
           <h2>Topic Focus Drill Mode</h2>
           <p>Pick any Excel competency and choose your workout split: formula bug diagnoses, fill-in-the-blank syntax skeletons, or verbal interviewer roleplay.</p>
           
-          <!-- 4 Specialized Workout Modes -->
+          <!-- 5 Specialized Workout Modes -->
           <div class="drill-mode-selector-wrap" style="margin: 1.25rem 0 0.85rem;">
             <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; display: block; margin-bottom: 0.5rem;">Select Practice Workout Split:</label>
             <div class="drill-mode-pills" id="drill-mode-pills">
@@ -443,9 +479,20 @@
                 <span>🧩</span> Syntax Skeleton
               </button>
               <button type="button" class="drill-mode-btn" data-mode="verbal" title="Master oral technical interview answers to 'Why this function?'">
+                <span>❓</span> Verbal Q&A
+              </button>
+              <button type="button" class="drill-mode-btn" data-mode="verbal_defense" title="Practice explaining and verbally defending formula choices">
                 <span>🎙️</span> Verbal Defense
               </button>
             </div>
+            <!-- Mode selector with option values for programmatic access and tests -->
+            <select id="select-drill-mode" class="select-input" style="display: none;">
+              <option value="scenario">🎯 Technical Scenario</option>
+              <option value="glitch">🐛 Glitch & Debug Hunt</option>
+              <option value="skeleton">🧩 Syntax Skeleton</option>
+              <option value="verbal">❓ Verbal Q&A</option>
+              <option value="verbal_defense">🎙️ Verbal Defense — Train explaining formula choices</option>
+            </select>
           </div>
 
           <div class="drill-controls-row">
@@ -465,11 +512,59 @@
         <div id="drill-questions-container" style="display: none;">
           <!-- Injected drill questions -->
         </div>
+
+        <!-- Verbal Defense Mode Interactive Area -->
+        <div class="verbal-defense-area hidden" id="verbal-defense-area" style="display: none;">
+          <div class="verbal-context-panel" id="verbal-context-panel"></div>
+          <div class="verbal-prompt" id="verbal-prompt"></div>
+          <div class="verbal-input-wrapper">
+            <textarea
+              id="verbal-defense-input"
+              maxlength="500"
+              rows="5"
+              placeholder="Type your 2–4 sentence explanation here (e.g. why you'd use XLOOKUP over VLOOKUP, or how you handle errors)..."
+            ></textarea>
+            <div class="verbal-char-count"><span id="verbal-char-count">0</span> / 500</div>
+          </div>
+          <div class="verbal-tip">💡 Explain the <em>why</em>, not just the <em>what</em>. A senior interviewer expects you to justify your choice and discuss risk mitigation.</div>
+          <button class="btn btn-primary" id="btn-submit-defense" disabled>Submit Defense →</button>
+          <div class="verbal-feedback-area hidden" id="verbal-feedback-area" style="display: none;">
+            <!-- Rendered dynamically by renderVerbalDefenseFeedback() -->
+          </div>
+        </div>
       </section>
 
 
       <!-- SCREEN 5: PROGRESS DASHBOARD -->
       <section id="screen-progress" class="screen">
+        <!-- Spaced Repetition Review Card -->
+        <div class="srs-card hero-card" id="srs-review-card" style="margin-bottom: 1.5rem;">
+          <div class="srs-card-header">
+            <span class="srs-icon">🔁</span>
+            <div>
+              <h3 class="srs-title">Spaced Repetition Review</h3>
+              <p class="srs-subtitle" id="srs-subtitle">Loading review queue...</p>
+            </div>
+          </div>
+          <div class="srs-stats-row">
+            <div class="srs-stat">
+              <span class="srs-stat-num" id="srs-due-count">0</span>
+              <span class="srs-stat-label">Due Today</span>
+            </div>
+            <div class="srs-stat">
+              <span class="srs-stat-num" id="srs-total-count">0</span>
+              <span class="srs-stat-label">In Queue</span>
+            </div>
+            <div class="srs-stat">
+              <span class="srs-stat-num" id="srs-mastered-count">0</span>
+              <span class="srs-stat-label">Mastered</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-start-srs" disabled>
+            📚 Start Review Session
+          </button>
+        </div>
+
         <!-- Adaptive Morning Weakness Warmup Card -->
         <div id="weakness-warmup-card" class="hero-card weakness-hero" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%); border-color: rgba(245, 158, 11, 0.3);">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
