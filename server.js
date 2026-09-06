@@ -63,7 +63,8 @@ const server = http.createServer((req, res) => {
   }
 
   // 1. Direct Kaggle Proxy Endpoint
-  if (reqUrl.pathname === '/api/kaggle') {
+  if (reqUrl.pathname === '/api/kaggle' || reqUrl.pathname === '/api/kaggle/view') {
+    const ref = reqUrl.searchParams.get('ref') || reqUrl.searchParams.get('dataset');
     const search = reqUrl.searchParams.get('search') || reqUrl.searchParams.get('query') || 'sales';
     const sortBy = reqUrl.searchParams.get('sortBy') || 'votes';
     const filetype = reqUrl.searchParams.get('filetype') || 'csv';
@@ -83,7 +84,9 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    const kagglePath = `/api/v1/datasets/list?search=${encodeURIComponent(search)}&sortBy=${encodeURIComponent(sortBy)}&filetype=${encodeURIComponent(filetype)}&pageSize=${encodeURIComponent(pageSize)}`;
+    const kagglePath = ref 
+      ? `/api/v1/datasets/view/${encodeURI(ref)}`
+      : `/api/v1/datasets/list?search=${encodeURIComponent(search)}&sortBy=${encodeURIComponent(sortBy)}&filetype=${encodeURIComponent(filetype)}&pageSize=${encodeURIComponent(pageSize)}`;
 
     const kaggleReq = https.request({
       hostname: 'www.kaggle.com',

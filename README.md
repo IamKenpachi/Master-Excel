@@ -25,6 +25,7 @@
   - [Phase 4: AI Excel Floating Robot Chatbot Assistant](#phase-4-ai-excel-floating-robot-chatbot-assistant)
   - [Phase 4.5: Preset Industry Domain Topics (1-Click Query Shortcuts)](#phase-45-preset-industry-domain-topics-1-click-query-shortcuts)
   - [Phase 5: Spaced Repetition (SRS), Daily Gauntlet & Verbal Defense](#phase-5-spaced-repetition-srs-daily-gauntlet--verbal-defense)
+  - [Phase 5.5: Schema Inspector & Kaggle Live Dataset Documentation](#phase-55-schema-inspector--kaggle-live-dataset-documentation)
 - [Core Analyst Competencies Tested](#core-analyst-competencies-tested)
 - [Power-User Keyboard Shortcuts](#power-user-keyboard-shortcuts)
 - [Tech Stack & Architecture](#tech-stack--architecture)
@@ -251,6 +252,25 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 
 ---
 
+### Phase 5.5: Schema Inspector & Kaggle Live Dataset Documentation
+*Added an interactive Schema Drawer and real-time Kaggle dataset documentation modal with attribute dictionary extraction.*
+
+- **1. Dataset Schema Inspector Drawer (`#schema-inspector-drawer`)**:
+  - Pinned slide-over drawer accessible directly from the active test header via the **`[🔍 Schema]`** button.
+  - Dynamically extracts columns, data types, and realistic sample values directly from attached synthetic CSV data or Kaggle schema metadata.
+  - Type-aware color badges (`Number / Numeric` in green, `Date` in yellow, `Text / Identifier` in cyan).
+  - **1-Click Formula Integration**: Clicking any column immediately copies its structured reference (e.g. `@[InvoiceNo]`, `@[UnitPrice]`) directly to the clipboard with visual confirmation feedback.
+  - Built-in heuristic fallback: In tests where raw CSV is missing, automatically extracts column names referenced in test task instructions or extracts definitions from Kaggle attribute blocks.
+
+- **2. Full Kaggle "About Dataset" Documentation Modal (`#modal-dataset-details`)**:
+  - Accessible via the **`[📖 Dataset Details]`** button in the test header.
+  - Solves the Kaggle search API limitation (which returns an empty `description: ""` to keep search payloads small) by automatically fetching the complete 2,000+ character markdown description directly from Kaggle's `/api/v1/datasets/view/{owner}/{slug}` REST API endpoint via our zero-dependency proxy.
+  - **Automated UCI / Kaggle Attribute Parser (`parseKaggleAttributeColumns`)**: Intelligently scans `### Attribute Information:` sections to extract all column names, definitions, and data types (e.g., all 8 columns in the Online Retail dataset: `InvoiceNo`, `StockCode`, `Description`, `Quantity`, `InvoiceDate`, `UnitPrice`, `CustomerID`, `Country`).
+  - **Interactive Variables & Schema Dictionary**: Renders a dedicated variables table pairing each column with its official data dictionary explanation, inferred data type, format sample, and a structured reference copy button.
+  - **Rich Markdown Formatting**: Formatted via `renderChatMarkdown` with custom typography for headings, bullet points, blockquotes, and code blocks.
+
+---
+
 ## 🧠 Core Analyst Competencies Tested
 
 ```
@@ -382,7 +402,7 @@ excel-mock-test/
 Run the full automated verification test suites from the terminal:
 
 ```bash
-# Run 17-test suite for Schema Inspector & Dataset Details Modal
+# Run 21-test suite for Schema Inspector, Kaggle Full Documentation & Attribute Parser
 node scripts/test_schema_and_dataset_modal.mjs
 
 # Run comprehensive 40-test suite for Phase 5 (SRS, Daily Gauntlet, Verbal Defense)

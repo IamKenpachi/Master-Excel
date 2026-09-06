@@ -125,13 +125,106 @@ export const Datasets = {
   },
 
   /**
+   * Parse column/variable definitions from Kaggle dataset markdown description
+   */
+  parseKaggleAttributeColumns(desc) {
+    if (!desc || typeof desc !== "string") return [];
+    const columns = [];
+    const attrMatch = desc.match(/(?:Attribute|Column|Variable|Feature)\s+Information:?([\s\S]*?)(?:\n#{1,3}|\n\n\n|$)/i);
+    const searchBlock = attrMatch ? attrMatch[1] : desc;
+
+    const lines = searchBlock.split(/\r?\n/);
+    lines.forEach(line => {
+      const trimmed = line.trim().replace(/^[-*•]\s*/, "");
+      const match = trimmed.match(/^`?([A-Za-z0-9_]{2,35})`?\s*[:\-–]\s*(.+)$/);
+      if (match) {
+        const colName = match[1].trim();
+        const definition = match[2].trim();
+        let type = "Text";
+        if (/date|time|timestamp|day|year|month/i.test(definition) || /date/i.test(colName)) {
+          type = "Date";
+        } else if (/nominal|identifier|id\b|code/i.test(definition) || /id|code|no\b/i.test(colName)) {
+          type = "Text / Identifier";
+        } else if (/numeric|integer|float|number|decimal|unit price|sterling|quantity|amount|rate|salary|revenue|cost|price/i.test(definition)) {
+          type = "Number / Numeric";
+        } else if (/boolean|flag|binary|indicator/i.test(definition)) {
+          type = "Boolean";
+        } else if (/text|string|name|categorical/i.test(definition)) {
+          type = "Text";
+        }
+        const sampleMatch = definition.match(/e\.?g\.?,?\s*([^,.;\n]+)/i);
+        const sample = sampleMatch ? sampleMatch[1].trim() : "—";
+        columns.push({ name: colName, type, sample, definition });
+      }
+    });
+    return columns;
+  },
+
+  /**
+   * Fetch complete dataset details and full markdown description from Kaggle
+   */
+  async fetchKaggleDetails(datasetRef, username, key) {
+    if (!datasetRef) return null;
+    const authHeaders = (username && key) ? { "Authorization": "Basic " + btoa(`${username.trim()}:${key.trim()}`) } : {};
+
+    // 1. Try local server proxy first
+    try {
+      const baseUrl = (typeof window !== "undefined" && window.location?.origin) ? "" : "http://localhost:3000";
+      const localProxyUrl = `${baseUrl}/api/kaggle?ref=${encodeURIComponent(datasetRef)}`;
+      const res = await fetch(localProxyUrl, { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        const description = data.descriptionNullable || data.description || data.subtitleNullable || data.subtitle || "";
+        const columns = this.parseKaggleAttributeColumns(description);
+        return {
+          title: data.titleNullable || data.title || datasetRef,
+          subtitle: data.subtitleNullable || data.subtitle || "",
+          description,
+          columns,
+          totalBytes: data.totalBytes || data.totalBytesNullable || 0
+        };
+      }
+    } catch (localErr) {
+      console.warn("Local Kaggle details proxy call failed:", localErr);
+    }
+
+    if (!username || !key) return null;
+
+    // 2. Fallback to public CORS proxies if running static host
+    const targetUrl = `https://www.kaggle.com/api/v1/datasets/view/${encodeURI(datasetRef)}`;
+    const authHeader = "Basic " + btoa(`${username.trim()}:${key.trim()}`);
+    for (const proxyFn of CORS_PROXIES) {
+      try {
+        const proxiedUrl = proxyFn(targetUrl);
+        const res = await fetch(proxiedUrl, { headers: { "Authorization": authHeader, "Accept": "application/json" } });
+        if (res.ok) {
+          const data = await res.json();
+          const description = data.descriptionNullable || data.description || data.subtitleNullable || data.subtitle || "";
+          const columns = this.parseKaggleAttributeColumns(description);
+          return {
+            title: data.titleNullable || data.title || datasetRef,
+            subtitle: data.subtitleNullable || data.subtitle || "",
+            description,
+            columns,
+            totalBytes: data.totalBytes || data.totalBytesNullable || 0
+          };
+        }
+      } catch {
+        // try next proxy
+      }
+    }
+    return null;
+  },
+
+  /**
    * Search Kaggle API via local proxy endpoint with CORS fallback
    */
   async searchKaggle(keywords = "sales", username, key, limit = 15) {
     // 1. Try local server proxy first (fastest, direct HTTPS to Kaggle, no CORS block)
     try {
       const authHeaders = (username && key) ? { "Authorization": "Basic " + btoa(`${username.trim()}:${key.trim()}`) } : {};
-      const localProxyUrl = `/api/kaggle?search=${encodeURIComponent(keywords)}&sortBy=votes&filetype=csv&pageSize=${limit}`;
+      const baseUrl = (typeof window !== "undefined" && window.location?.origin) ? "" : "http://localhost:3000";
+      const localProxyUrl = `${baseUrl}/api/kaggle?search=${encodeURIComponent(keywords)}&sortBy=votes&filetype=csv&pageSize=${limit}`;
       const res = await fetch(localProxyUrl, { headers: authHeaders });
 
       if (res.ok) {

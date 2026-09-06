@@ -434,13 +434,31 @@ function renderRankedDatasetCards(datasets) {
     `;
 
     const selectBtn = card.querySelector(".btn-select-ds");
-    selectBtn.addEventListener("click", () => {
+    selectBtn.addEventListener("click", async () => {
       state.selectedDataset = ds;
       document.querySelectorAll(".dataset-card").forEach(c => c.classList.remove("selected"));
       document.querySelectorAll(".btn-select-ds").forEach(b => b.textContent = "Select Dataset");
       card.classList.add("selected");
       selectBtn.textContent = "✓ Selected";
       document.getElementById("generation-status-text").textContent = `Selected: "${ds.title}". Gemini will calibrate tasks around this schema.`;
+
+      // Pre-fetch complete Kaggle description & attribute columns if not already loaded
+      if (ds.source === "Kaggle" && (!ds.columns || ds.columns.length === 0 || (ds.description && ds.description.length < 150))) {
+        try {
+          const creds = Storage.getKaggleCredentials();
+          const kgInfo = await Datasets.fetchKaggleDetails(ds.id, creds.username, creds.key);
+          if (kgInfo && state.selectedDataset?.id === ds.id) {
+            if (kgInfo.description && kgInfo.description.length > (state.selectedDataset.description || "").length) {
+              state.selectedDataset.description = kgInfo.description;
+            }
+            if (kgInfo.columns && kgInfo.columns.length > 0) {
+              state.selectedDataset.columns = kgInfo.columns;
+            }
+          }
+        } catch (e) {
+          console.warn("Kaggle dataset details pre-fetch error:", e);
+        }
+      }
     });
 
     container.appendChild(card);
@@ -476,6 +494,17 @@ async function handleGenerateTest() {
           if (hfInfo) {
             state.selectedDataset.columns = hfInfo.columns;
             state.selectedDataset.rowCount = hfInfo.rowCount;
+          }
+        } else if (state.selectedDataset.source === "Kaggle" && (!state.selectedDataset.columns || state.selectedDataset.columns.length === 0 || (state.selectedDataset.description && state.selectedDataset.description.length < 150))) {
+          const creds = Storage.getKaggleCredentials();
+          const kgInfo = await Datasets.fetchKaggleDetails(state.selectedDataset.id, creds.username, creds.key);
+          if (kgInfo) {
+            if (kgInfo.description && kgInfo.description.length > (state.selectedDataset.description || "").length) {
+              state.selectedDataset.description = kgInfo.description;
+            }
+            if (kgInfo.columns && kgInfo.columns.length > 0) {
+              state.selectedDataset.columns = kgInfo.columns;
+            }
           }
         }
 
@@ -1288,10 +1317,26 @@ function updateSchemaDrawer() {
         return {
           name: c.name || c.column || String(c),
           type: c.type || "Text",
-          sample: c.sample || "—"
+          sample: c.sample || "—",
+          definition: c.definition || ""
         };
       })
     };
+  }
+
+  // Fallback 1.5: If dataset has a markdown description with attribute information, parse columns directly
+  if (schema.columns.length === 0 && datasetMeta.description) {
+    const parsedCols = Datasets.parseKaggleAttributeColumns(datasetMeta.description);
+    if (parsedCols && parsedCols.length > 0) {
+      schema = {
+        title: testTitle,
+        rowCount: datasetMeta.rowCount || "Sample Table",
+        columns: parsedCols
+      };
+      if (!datasetMeta.columns || datasetMeta.columns.length === 0) {
+        datasetMeta.columns = parsedCols;
+      }
+    }
   }
 
   // Fallback 2: Extract column references from test tasks if CSV is missing
@@ -1381,12 +1426,41 @@ function updateSchemaDrawer() {
 /**
  * Render and Open Dataset Details Modal
  */
-function openDatasetDetailsModal() {
+async function openDatasetDetailsModal() {
   const modal = document.getElementById("modal-dataset-details");
   if (!modal) return;
   toggleSchemaDrawer(false);
   renderDatasetDetailsModal();
   modal.classList.add("active");
+
+  // Check if we should fetch full Kaggle documentation asynchronously
+  const currentTest = state.currentTest || Storage.getActiveTest();
+  const testObj = currentTest?.test || currentTest || {};
+  const datasetMeta = currentTest?.datasetMeta || state.selectedDataset || testObj?.datasetInfo || {};
+  const isKaggle = datasetMeta.source === "Kaggle" || (datasetMeta.url && datasetMeta.url.includes("kaggle.com"));
+  const rawDesc = datasetMeta.description || "";
+  const datasetId = datasetMeta.id || (datasetMeta.url ? datasetMeta.url.split("/datasets/").pop() : null);
+
+  if (isKaggle && datasetId && rawDesc.length < 150) {
+    try {
+      const creds = Storage.getKaggleCredentials();
+      const kgInfo = await Datasets.fetchKaggleDetails(datasetId, creds.username, creds.key);
+      if (kgInfo && kgInfo.description && kgInfo.description.length > rawDesc.length) {
+        datasetMeta.description = kgInfo.description;
+        if (kgInfo.columns && kgInfo.columns.length > 0 && (!datasetMeta.columns || datasetMeta.columns.length === 0)) {
+          datasetMeta.columns = kgInfo.columns;
+        }
+        if (currentTest) {
+          currentTest.datasetMeta = datasetMeta;
+          Storage.saveActiveTest(currentTest);
+        }
+        renderDatasetDetailsModal();
+        updateSchemaDrawer();
+      }
+    } catch (err) {
+      console.warn("Async Kaggle details fetch failed:", err);
+    }
+  }
 }
 
 /**
@@ -1426,8 +1500,22 @@ function renderDatasetDetailsModal() {
   if (columns.length === 0 && Array.isArray(datasetMeta.columns) && datasetMeta.columns.length > 0) {
     columns = datasetMeta.columns.map(c => {
       if (typeof c === "string") return { name: c, type: "Text", sample: "—" };
-      return { name: c.name || c.column || String(c), type: c.type || "Text", sample: c.sample || "—" };
+      return {
+        name: c.name || c.column || String(c),
+        type: c.type || "Text",
+        sample: c.sample || "—",
+        definition: c.definition || ""
+      };
     });
+  }
+
+  // Fallback: If columns empty, check if dataset description has Kaggle Attribute Information
+  if (columns.length === 0 && datasetMeta.description) {
+    const parsedCols = Datasets.parseKaggleAttributeColumns(datasetMeta.description);
+    if (parsedCols && parsedCols.length > 0) {
+      columns = parsedCols;
+      datasetMeta.columns = parsedCols;
+    }
   }
 
   if (columns.length === 0 && Array.isArray(testObj.tasks) && testObj.tasks.length > 0) {
@@ -1490,7 +1578,10 @@ function renderDatasetDetailsModal() {
                   : (typeStr.includes("date") ? "date" : "text");
                 return `
                   <tr>
-                    <td><strong style="color:var(--text-bright);">${escapeHtml(col.name)}</strong></td>
+                    <td>
+                      <strong style="color:var(--text-bright);">${escapeHtml(col.name)}</strong>
+                      ${col.definition ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px; line-height:1.35;">${escapeHtml(col.definition)}</div>` : ""}
+                    </td>
                     <td><span class="schema-type-pill ${typeClass}">${escapeHtml(col.type)}</span></td>
                     <td><code style="font-size:0.75rem; color:var(--accent-green);">${escapeHtml(String(col.sample || "—"))}</code></td>
                     <td style="text-align:right;">
@@ -1511,19 +1602,14 @@ function renderDatasetDetailsModal() {
     `;
   }
 
-  // Format Description with paragraphs
-  const formattedDesc = escapeHtml(rawDescription)
-    .replace(/\r?\n\r?\n/g, "</p><p style='margin-top:0.6rem;'>")
-    .replace(/\r?\n/g, "<br>");
-
   bodyEl.innerHTML = `
     <!-- Dataset Summary -->
     <div class="dataset-section-block">
       <div class="dataset-section-title">
         <span>📄</span> Dataset Overview & Description
       </div>
-      <div class="dataset-desc-content">
-        <p style="margin: 0;">${formattedDesc}</p>
+      <div class="dataset-desc-content" style="font-size:0.88rem; line-height:1.6; color:var(--text-secondary);">
+        ${renderChatMarkdown(rawDescription)}
       </div>
     </div>
 

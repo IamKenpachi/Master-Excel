@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseDatasetSchema } from "../app.js";
 import { SAMPLE_OFFLINE_TEST } from "../storage.js";
+import { Datasets } from "../datasets.js";
 
 console.log("================================================================================");
 console.log("  EXCELCOACH AI — SCHEMA INSPECTOR & DATASET DETAILS VERIFICATION SUITE");
@@ -20,9 +21,9 @@ const css = fs.readFileSync(cssPath, "utf-8");
 const appJs = fs.readFileSync(appJsPath, "utf-8");
 
 let passed = 0;
-function test(name, fn) {
+async function test(name, fn) {
   try {
-    fn();
+    await fn();
     console.log(`  ✅ PASS: ${name}`);
     passed++;
   } catch (err) {
@@ -162,6 +163,67 @@ test("MODAL-05: loadTestIntoView synchronizes syntheticCsv and preserves dataset
   assert.ok(appJs.includes("test.syntheticCsv = csvContent"), "Synchronizes test.syntheticCsv");
   assert.ok(appJs.includes("testPayload.syntheticCsv = csvContent"), "Synchronizes testPayload.syntheticCsv");
   assert.ok(appJs.includes("datasetMeta: testPayload.datasetMeta"), "Saves datasetMeta to history");
+});
+
+// -----------------------------------------------------------------------------
+// Group 5: Kaggle Full Description & Attribute Column Extraction
+// -----------------------------------------------------------------------------
+console.log("\n--- Group 5: Kaggle Full Description & Attribute Column Extraction ---");
+
+const sampleKaggleDescription = `### Context
+This is a transnational data set which contains all the transactions occurring between 01/12/2010 and 09/12/2011 for a UK-based and registered non-store online retail.
+
+### Content
+The company mainly sells unique all-occasion gifts. Many customers of the company are wholesalers.
+
+### Attribute Information:
+InvoiceNo: Invoice number. Nominal, a 6-digit integral number uniquely assigned to each transaction. If this code starts with letter 'c', it indicates a cancellation.
+StockCode: Product (item) code. Nominal, a 5-digit integral number uniquely assigned to each distinct product.
+Description: Product (item) name. Nominal.
+Quantity: The quantities of each product (item) per transaction. Numeric.
+InvoiceDate: Invice Date and time. Numeric, the day and time when each transaction was generated.
+UnitPrice: Unit price. Numeric, Product price per unit in sterling.
+CustomerID: Customer number. Nominal, a 5-digit integral number uniquely assigned to each customer.
+Country: Country name. Nominal, the name of the country where each customer resides.`;
+
+await test("KAGGLE-01: parseKaggleAttributeColumns parses all 8 columns from Online Retail description", () => {
+  const cols = Datasets.parseKaggleAttributeColumns(sampleKaggleDescription);
+  assert.strictEqual(cols.length, 8, `Expected 8 columns, got ${cols.length}`);
+  
+  const colNames = cols.map(c => c.name);
+  assert.ok(colNames.includes("InvoiceNo"), "Missing InvoiceNo");
+  assert.ok(colNames.includes("StockCode"), "Missing StockCode");
+  assert.ok(colNames.includes("Description"), "Missing Description");
+  assert.ok(colNames.includes("Quantity"), "Missing Quantity");
+  assert.ok(colNames.includes("InvoiceDate"), "Missing InvoiceDate");
+  assert.ok(colNames.includes("UnitPrice"), "Missing UnitPrice");
+  assert.ok(colNames.includes("CustomerID"), "Missing CustomerID");
+  assert.ok(colNames.includes("Country"), "Missing Country");
+
+  const invoiceNo = cols.find(c => c.name === "InvoiceNo");
+  assert.strictEqual(invoiceNo.type, "Text / Identifier");
+  assert.ok(invoiceNo.definition.includes("Invoice number"));
+
+  const qty = cols.find(c => c.name === "Quantity");
+  assert.strictEqual(qty.type, "Number / Numeric");
+
+  const date = cols.find(c => c.name === "InvoiceDate");
+  assert.strictEqual(date.type, "Date");
+});
+
+await test("KAGGLE-02: fetchKaggleDetails retrieves full 2,100+ character markdown description via local proxy", async () => {
+  const details = await Datasets.fetchKaggleDetails("tunguz/online-retail");
+  assert.ok(details, "fetchKaggleDetails should return a result");
+  assert.ok(details.description.length > 1000, `Description should be >1000 chars, got ${details.description.length}`);
+  assert.ok(details.description.includes("InvoiceNo"), "Description must contain InvoiceNo attribute information");
+  assert.strictEqual(details.columns.length, 8, `Parsed columns should be 8, got ${details.columns.length}`);
+});
+
+await test("KAGGLE-03: app.js renders markdown description and includes column definitions in variables table", () => {
+  assert.ok(appJs.includes("renderChatMarkdown(rawDescription)"), "Must use renderChatMarkdown to render rich text");
+  assert.ok(appJs.includes("col.definition"), "Must include col.definition in variables table");
+  assert.ok(appJs.includes("Datasets.parseKaggleAttributeColumns(datasetMeta.description)"), "Must support attribute parsing fallback");
+  assert.ok(appJs.includes("Datasets.fetchKaggleDetails(state.selectedDataset.id"), "Must call fetchKaggleDetails on generation");
 });
 
 console.log("\n================================================================================");
