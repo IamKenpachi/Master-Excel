@@ -286,6 +286,9 @@
             <button class="btn btn-secondary" id="btn-toggle-schema" title="Inspect Dataset Schema & Columns (Press D)">
               <span>📊</span> Schema Inspector
             </button>
+            <button class="btn btn-secondary" id="btn-toggle-dataset-info" title="View Full Dataset Description & Variables Documentation">
+              <span>📖</span> Dataset Details
+            </button>
             <button class="btn btn-secondary" id="btn-toggle-strict" title="Toggle Strict Exam Mode (Locks hints & enables timed pressure)">
               <span id="strict-mode-icon">🛡️</span> <span id="strict-mode-text">Strict Mode: OFF</span>
             </button>
@@ -743,6 +746,25 @@
               <span>✓</span> Close Scorecard
             </button>
           </div>
+        </div>
+      </div>
+    <!-- Dataset Details & Variables Documentation Modal -->
+    <div id="modal-dataset-details" class="modal-overlay">
+      <div class="modal-card" style="max-width: 780px; width: 92vw; max-height: 88vh; display: flex; flex-direction: column;">
+        <div class="modal-header" style="margin-bottom: 0; padding-bottom: 0.85rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.4rem;">📖</span>
+            <div>
+              <h3 id="dataset-modal-title" style="font-size: 1.15rem; font-weight: 700; color: var(--text-bright); margin: 0;">Dataset Documentation & Variables</h3>
+              <div id="dataset-modal-badges" style="display: flex; gap: 0.4rem; margin-top: 0.35rem; flex-wrap: wrap;">
+                <!-- Dynamic badges: Source, Row Count, Status -->
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-icon" id="btn-close-dataset-modal" title="Close (Press Esc)" style="width: 32px; height: 32px; font-size: 1rem;">✕</button>
+        </div>
+        <div class="modal-body" id="dataset-modal-body" style="padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1;">
+          <!-- Dynamically populated dataset overview, variable schema, and case study context -->
         </div>
       </div>
     </div>

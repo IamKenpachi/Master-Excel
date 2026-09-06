@@ -318,6 +318,7 @@ excel-mock-test/
 ├── export.js                # Print styling, test sheet & 1-page cheat sheet
 ├── server.js                # Lightweight Node.js API proxy server
 ├── scripts/
+│   ├── test_schema_and_dataset_modal.mjs # 17-test suite for Schema Inspector & Dataset Details Modal
 │   ├── test_phase5.mjs          # 40-test suite verifying SRS, Daily Gauntlet, and Verbal Defense
 │   ├── test_industry_topics.mjs # 16 preset industry domain topic chips test
 │   ├── test_learning_modes.mjs  # 26 automated tests verifying all phases
@@ -381,6 +382,9 @@ excel-mock-test/
 Run the full automated verification test suites from the terminal:
 
 ```bash
+# Run 17-test suite for Schema Inspector & Dataset Details Modal
+node scripts/test_schema_and_dataset_modal.mjs
+
 # Run comprehensive 40-test suite for Phase 5 (SRS, Daily Gauntlet, Verbal Defense)
 node scripts/test_phase5.mjs
 

@@ -501,6 +501,10 @@ async function handleGenerateTest() {
       model
     });
 
+    if (datasetMeta && !testPayload.datasetMeta) {
+      testPayload.datasetMeta = datasetMeta;
+    }
+
     // Save test in storage & state
     loadTestIntoView(testPayload, true);
     statusText.textContent = "Test generated successfully!";
@@ -788,13 +792,41 @@ function loadTestIntoView(testPayload, saveToHistory = true) {
     testPayload = {
       test: testPayload,
       answerKey: testPayload.answerKey || [],
-      syntheticCsv: testPayload.syntheticCsv || "",
+      syntheticCsv: testPayload.syntheticCsv || testPayload.test?.syntheticCsv || "",
+      datasetMeta: testPayload.datasetMeta || null,
       modelUsed: testPayload.modelUsed || "Gemini"
     };
   }
 
   const test = testPayload.test;
   if (!test) return;
+
+  // Synchronize syntheticCsv between testPayload and test
+  const csvContent = test.syntheticCsv || testPayload.syntheticCsv || test.datasetInfo?.syntheticCsv || "";
+  test.syntheticCsv = csvContent;
+  testPayload.syntheticCsv = csvContent;
+
+  // Ensure datasetMeta is populated and retained
+  if (!testPayload.datasetMeta && state.selectedDataset) {
+    testPayload.datasetMeta = {
+      name: state.selectedDataset.title,
+      source: state.selectedDataset.source,
+      url: state.selectedDataset.url,
+      rowCount: state.selectedDataset.rowCount || "10,000+",
+      description: state.selectedDataset.description,
+      columns: state.selectedDataset.columns || []
+    };
+  }
+  if (!testPayload.datasetMeta && test.datasetInfo) {
+    testPayload.datasetMeta = {
+      name: test.datasetInfo.name || test.title,
+      source: test.datasetInfo.source || "Enterprise System Export",
+      url: "",
+      rowCount: test.datasetInfo.rowCount || "1,000+",
+      description: test.datasetInfo.description || test.scenario?.background || "Curated enterprise dataset.",
+      columns: test.datasetInfo.columns || []
+    };
+  }
 
   // Ensure answerKey array exists at root level
   if (!Array.isArray(testPayload.answerKey)) {
@@ -836,6 +868,7 @@ function loadTestIntoView(testPayload, saveToHistory = true) {
       test: testPayload.test,
       answerKey: testPayload.answerKey,
       syntheticCsv: testPayload.syntheticCsv,
+      datasetMeta: testPayload.datasetMeta,
       taskProgress: state.taskProgress,
       modelUsed: testPayload.modelUsed
     });
@@ -856,7 +889,6 @@ function loadTestIntoView(testPayload, saveToHistory = true) {
   const downloadBtn = document.getElementById("btn-download-csv");
   const datasetLink = document.getElementById("btn-open-dataset-link");
 
-  const csvContent = test.syntheticCsv || testPayload.syntheticCsv;
   if (csvContent && csvContent.trim().length > 10) {
     downloadBtn.style.display = "inline-flex";
     downloadBtn.onclick = () => {
@@ -1231,52 +1263,282 @@ function runFormulaLinter() {
  */
 function updateSchemaDrawer() {
   const titleEl = document.getElementById("schema-dataset-title");
-  const metaEl = document.getElementById("schema-meta-info");
-  const listEl = document.getElementById("schema-columns-list");
-  if (!listEl) return;
+  const colCountEl = document.getElementById("schema-col-count");
+  const rowCountEl = document.getElementById("schema-row-count");
+  const tbodyEl = document.getElementById("schema-table-tbody");
+  if (!tbodyEl) return;
 
-  const csvContent = state.currentTest?.syntheticCsv || state.currentTest?.test?.syntheticCsv || "";
-  const testTitle = state.currentTest?.test?.title || "Active Test Dataset";
+  const currentTest = state.currentTest || Storage.getActiveTest();
+  const testObj = currentTest?.test || currentTest || {};
+  const datasetMeta = currentTest?.datasetMeta || state.selectedDataset || testObj?.datasetInfo || {};
 
-  const schema = parseDatasetSchema(csvContent, testTitle);
+  // Extract raw CSV content
+  const csvContent = currentTest?.syntheticCsv || testObj?.syntheticCsv || testObj?.datasetInfo?.syntheticCsv || "";
+  const testTitle = datasetMeta.name || datasetMeta.title || testObj.title || "Active Test Dataset";
 
-  if (titleEl) titleEl.textContent = `${schema.title} (${schema.rowCount} rows)`;
-  if (metaEl) {
-    metaEl.innerHTML = `
-      <div style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:0.75rem; padding:0.5rem 0.75rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); border:1px solid var(--glass-border);">
-        💡 Click any column to copy <code>@[Column]</code> structured reference.
-      </div>
-    `;
+  let schema = parseDatasetSchema(csvContent, testTitle);
+
+  // Fallback 1: If CSV was empty/unparsed, extract columns from datasetMeta or testObj.datasetInfo
+  if (schema.columns.length === 0 && Array.isArray(datasetMeta.columns) && datasetMeta.columns.length > 0) {
+    schema = {
+      title: testTitle,
+      rowCount: datasetMeta.rowCount || "1,000+",
+      columns: datasetMeta.columns.map(c => {
+        if (typeof c === "string") return { name: c, type: "Text", sample: "—" };
+        return {
+          name: c.name || c.column || String(c),
+          type: c.type || "Text",
+          sample: c.sample || "—"
+        };
+      })
+    };
   }
 
+  // Fallback 2: Extract column references from test tasks if CSV is missing
+  if (schema.columns.length === 0 && Array.isArray(testObj.tasks) && testObj.tasks.length > 0) {
+    const extractedCols = new Set();
+    testObj.tasks.forEach(t => {
+      const instr = t.instruction || "";
+      const matches = instr.match(/\[([A-Za-z0-9_\s]+)\]/g);
+      if (matches) {
+        matches.forEach(m => {
+          const colName = m.replace(/[\[\]]/g, "").trim();
+          if (colName && !colName.startsWith("tbl") && colName.length < 30) {
+            extractedCols.add(colName);
+          }
+        });
+      }
+    });
+    if (extractedCols.size > 0) {
+      schema = {
+        title: testTitle,
+        rowCount: "Sample Table",
+        columns: Array.from(extractedCols).map(c => ({
+          name: c,
+          type: /date|year|month/i.test(c) ? "Date" : (/amount|price|cost|revenue|units|sales|revpar|rate|id|code/i.test(c) ? "Number / Currency" : "Text"),
+          sample: "—"
+        }))
+      };
+    }
+  }
+
+  // Update Drawer Headers
+  if (titleEl) {
+    titleEl.textContent = `${schema.title} (${schema.rowCount} rows)`;
+  }
+  if (colCountEl) {
+    colCountEl.textContent = `${schema.columns.length} Columns`;
+  }
+  if (rowCountEl) {
+    rowCountEl.textContent = `${schema.rowCount} Sample Rows`;
+  }
+
+  // Render Table Rows
   if (schema.columns.length === 0) {
-    listEl.innerHTML = `
-      <div style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.85rem;">
-        No raw tabular CSV data attached to this test. Generate a test or load offline demo to inspect columns.
-      </div>
+    tbodyEl.innerHTML = `
+      <tr>
+        <td colspan="3" style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.85rem;">
+          No column definitions or raw CSV attached to this test.<br>
+          <span style="font-size:0.78rem; opacity:0.8;">Click <strong>Dataset Details</strong> on top to review the case study description.</span>
+        </td>
+      </tr>
     `;
     return;
   }
 
-  listEl.innerHTML = schema.columns.map(col => `
-    <div class="schema-col-card" data-col="${escapeHtml(col.name)}" title="Click to copy structured reference">
-      <div class="schema-col-header">
-        <strong style="color:var(--text-bright); font-size:0.88rem;">${escapeHtml(col.name)}</strong>
-        <span class="schema-type-pill ${col.type.toLowerCase().includes("number") ? "number" : (col.type.toLowerCase().includes("date") ? "date" : "text")}">${escapeHtml(col.type)}</span>
-      </div>
-      <div class="schema-sample-val">Sample: <code>${escapeHtml(String(col.sample))}</code></div>
-    </div>
-  `).join("");
+  tbodyEl.innerHTML = schema.columns.map(col => {
+    const typeStr = (col.type || "Text").toLowerCase();
+    const typeClass = typeStr.includes("number") || typeStr.includes("float") || typeStr.includes("int")
+      ? "number"
+      : (typeStr.includes("date") ? "date" : "text");
 
-  listEl.querySelectorAll(".schema-col-card").forEach(card => {
-    card.addEventListener("click", () => {
-      const colName = card.dataset.col;
+    return `
+      <tr class="schema-col-row" data-col="${escapeHtml(col.name)}" title="Click to copy @[${escapeHtml(col.name)}]">
+        <td><strong style="color:var(--text-bright);">${escapeHtml(col.name)}</strong></td>
+        <td><span class="schema-type-pill ${typeClass}">${escapeHtml(col.type)}</span></td>
+        <td><code style="font-size:0.75rem; color:var(--accent-green);">${escapeHtml(String(col.sample || "—"))}</code></td>
+      </tr>
+    `;
+  }).join("");
+
+  // Attach click-to-copy handler
+  tbodyEl.querySelectorAll(".schema-col-row").forEach(row => {
+    row.addEventListener("click", () => {
+      const colName = row.dataset.col;
       const ref = `@[${colName}]`;
       navigator.clipboard?.writeText(ref).then(() => {
-        const header = card.querySelector(".schema-col-header strong");
-        const orig = header.textContent;
-        header.textContent = `Copied ${ref}!`;
-        setTimeout(() => { header.textContent = orig; }, 1200);
+        const strong = row.querySelector("strong");
+        if (strong) {
+          const orig = strong.textContent;
+          strong.textContent = `✓ Copied ${ref}!`;
+          setTimeout(() => { strong.textContent = orig; }, 1200);
+        }
+      });
+    });
+  });
+}
+
+/**
+ * Render and Open Dataset Details Modal
+ */
+function openDatasetDetailsModal() {
+  const modal = document.getElementById("modal-dataset-details");
+  if (!modal) return;
+  renderDatasetDetailsModal();
+  modal.classList.add("active");
+}
+
+/**
+ * Close Dataset Details Modal
+ */
+function closeDatasetDetailsModal() {
+  const modal = document.getElementById("modal-dataset-details");
+  if (!modal) return;
+  modal.classList.remove("active");
+}
+
+/**
+ * Render dynamic dataset description and variables dictionary inside modal
+ */
+function renderDatasetDetailsModal() {
+  const titleEl = document.getElementById("dataset-modal-title");
+  const badgesEl = document.getElementById("dataset-modal-badges");
+  const bodyEl = document.getElementById("dataset-modal-body");
+  if (!bodyEl) return;
+
+  const currentTest = state.currentTest || Storage.getActiveTest();
+  const testObj = currentTest?.test || currentTest || {};
+  const datasetMeta = currentTest?.datasetMeta || state.selectedDataset || testObj?.datasetInfo || {};
+  const scenario = testObj?.scenario || {};
+
+  const title = datasetMeta.name || datasetMeta.title || testObj.title || "Dataset Documentation";
+  const source = datasetMeta.source || state.selectedDataset?.source || testObj?.datasetInfo?.source || "Curated Practice Data";
+  const rowCount = datasetMeta.rowCount || testObj?.datasetInfo?.rowCount || "1,000+ records";
+  const url = datasetMeta.url || state.selectedDataset?.url || "";
+  const rawDescription = datasetMeta.description || state.selectedDataset?.description || testObj?.datasetInfo?.description || scenario.background || "Comprehensive business dataset curated for Excel candidate assessment.";
+
+  // Extract CSV and parse schema
+  const csvContent = currentTest?.syntheticCsv || testObj?.syntheticCsv || testObj?.datasetInfo?.syntheticCsv || "";
+  const schema = parseDatasetSchema(csvContent, title);
+  let columns = schema.columns;
+
+  if (columns.length === 0 && Array.isArray(datasetMeta.columns) && datasetMeta.columns.length > 0) {
+    columns = datasetMeta.columns.map(c => {
+      if (typeof c === "string") return { name: c, type: "Text", sample: "—" };
+      return { name: c.name || c.column || String(c), type: c.type || "Text", sample: c.sample || "—" };
+    });
+  }
+
+  // Update Title & Badges
+  if (titleEl) titleEl.textContent = title;
+  if (badgesEl) {
+    badgesEl.innerHTML = `
+      <span class="dataset-meta-badge">📁 Source: <strong>${escapeHtml(source)}</strong></span>
+      <span class="dataset-meta-badge">📊 <strong>${escapeHtml(String(rowCount))}</strong></span>
+      <span class="dataset-meta-badge">🏷️ <strong>${columns.length} Variables</strong></span>
+      ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="dataset-source-link" style="margin-left:auto;">↗ Open on ${escapeHtml(source)}</a>` : ""}
+    `;
+  }
+
+  // Build Variables Table HTML
+  let varsTableHtml = "";
+  if (columns.length > 0) {
+    varsTableHtml = `
+      <div class="dataset-section-block">
+        <div class="dataset-section-title">
+          <span>📋</span> Variables & Schema Dictionary (${columns.length} Columns)
+        </div>
+        <div style="max-height: 280px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius-sm);">
+          <table class="dataset-vars-table">
+            <thead>
+              <tr>
+                <th>Column / Variable</th>
+                <th>Inferred Type</th>
+                <th>Sample / Format</th>
+                <th style="text-align:right;">Structured Ref</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${columns.map(col => {
+                const typeStr = (col.type || "Text").toLowerCase();
+                const typeClass = typeStr.includes("number") || typeStr.includes("float") || typeStr.includes("int")
+                  ? "number"
+                  : (typeStr.includes("date") ? "date" : "text");
+                return `
+                  <tr>
+                    <td><strong style="color:var(--text-bright);">${escapeHtml(col.name)}</strong></td>
+                    <td><span class="schema-type-pill ${typeClass}">${escapeHtml(col.type)}</span></td>
+                    <td><code style="font-size:0.75rem; color:var(--accent-green);">${escapeHtml(String(col.sample || "—"))}</code></td>
+                    <td style="text-align:right;">
+                      <button class="btn btn-secondary btn-copy-col-ref" data-ref="@[${escapeHtml(col.name)}]" style="padding: 2px 7px; font-size: 0.72rem;">
+                        Copy @[${escapeHtml(col.name)}]
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; margin-bottom: 0;">
+          💡 Tip: Click any structured reference button to copy <code>@[Column]</code> directly into your formula.
+        </p>
+      </div>
+    `;
+  }
+
+  // Format Description with paragraphs
+  const formattedDesc = escapeHtml(rawDescription)
+    .replace(/\r?\n\r?\n/g, "</p><p style='margin-top:0.6rem;'>")
+    .replace(/\r?\n/g, "<br>");
+
+  bodyEl.innerHTML = `
+    <!-- Dataset Summary -->
+    <div class="dataset-section-block">
+      <div class="dataset-section-title">
+        <span>📄</span> Dataset Overview & Description
+      </div>
+      <div class="dataset-desc-content">
+        <p style="margin: 0;">${formattedDesc}</p>
+      </div>
+    </div>
+
+    <!-- Variables & Column Dictionary -->
+    ${varsTableHtml}
+
+    <!-- Business Context & Scenario -->
+    ${scenario.background || scenario.objective ? `
+      <div class="dataset-section-block">
+        <div class="dataset-section-title">
+          <span>💼</span> Business Scenario & Objectives
+        </div>
+        ${scenario.company ? `<div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.4rem;">Organization: <strong style="color:var(--text-bright);">${escapeHtml(scenario.company)}</strong> ${scenario.industry ? `(${escapeHtml(scenario.industry)})` : ""}</div>` : ""}
+        ${scenario.background ? `<p style="font-size:0.84rem; color:var(--text-secondary); line-height:1.5; margin-bottom:0.5rem;">${escapeHtml(scenario.background)}</p>` : ""}
+        ${scenario.objective ? `<div style="font-size:0.84rem; color:var(--accent-cyan); background:rgba(6,182,212,0.06); padding:0.6rem 0.85rem; border-radius:var(--radius-sm); border-left:3px solid var(--accent-cyan);"><strong>Objective:</strong> ${escapeHtml(scenario.objective)}</div>` : ""}
+      </div>
+    ` : ""}
+
+    <!-- Data Hygiene & Interview Notes -->
+    ${testObj?.datasetInfo?.dataHygieneNotes ? `
+      <div class="dataset-section-block" style="border-left: 3px solid var(--accent-amber);">
+        <div class="dataset-section-title" style="color: var(--accent-amber);">
+          <span>⚠️</span> Data Hygiene & Preprocessing Notes
+        </div>
+        <p style="font-size: 0.84rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+          ${escapeHtml(testObj.datasetInfo.dataHygieneNotes)}
+        </p>
+      </div>
+    ` : ""}
+  `;
+
+  // Attach click-to-copy handlers on the modal buttons
+  bodyEl.querySelectorAll(".btn-copy-col-ref").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const ref = btn.dataset.ref;
+      navigator.clipboard?.writeText(ref).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = "✓ Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1200);
       });
     });
   });
@@ -2092,6 +2354,14 @@ function initEventListeners() {
   document.getElementById("btn-toggle-schema")?.addEventListener("click", () => toggleSchemaDrawer());
   document.getElementById("btn-close-schema")?.addEventListener("click", () => toggleSchemaDrawer(false));
 
+  // Dataset Details Modal
+  document.getElementById("btn-toggle-dataset-info")?.addEventListener("click", openDatasetDetailsModal);
+  document.getElementById("btn-close-dataset-modal")?.addEventListener("click", closeDatasetDetailsModal);
+  const datasetModal = document.getElementById("modal-dataset-details");
+  datasetModal?.addEventListener("click", (e) => {
+    if (e.target === datasetModal) closeDatasetDetailsModal();
+  });
+
   // Strict Exam Mode Toggle
   document.getElementById("btn-toggle-strict")?.addEventListener("click", toggleStrictMode);
 
@@ -2120,6 +2390,7 @@ function initEventListeners() {
       document.getElementById("modal-shortcuts")?.classList.remove("active");
       document.getElementById("modal-settings")?.classList.remove("active");
       document.getElementById("modal-scorecard")?.classList.remove("active");
+      closeDatasetDetailsModal();
       toggleSchemaDrawer(false);
       toggleChatbot(false);
       return;
