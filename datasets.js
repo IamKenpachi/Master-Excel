@@ -1,5 +1,14 @@
 // datasets.js - Dual Hugging Face & Kaggle Search Engine with CORS Proxy
 
+// Unicode-safe Base64 encoder (ERR-03)
+function safeBtoa(str) {
+  try {
+    return btoa(unescape(encodeURIComponent(str)));
+  } catch {
+    return btoa(str);
+  }
+}
+
 const CORS_PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
@@ -126,6 +135,7 @@ export const Datasets = {
 
   /**
    * Parse column/variable definitions from Kaggle dataset markdown description
+   * Supports column names with spaces and hyphens e.g. "Invoice No", "Unit Price" (BUG-02)
    */
   parseKaggleAttributeColumns(desc) {
     if (!desc || typeof desc !== "string") return [];
@@ -136,7 +146,8 @@ export const Datasets = {
     const lines = searchBlock.split(/\r?\n/);
     lines.forEach(line => {
       const trimmed = line.trim().replace(/^[-*•]\s*/, "");
-      const match = trimmed.match(/^`?([A-Za-z0-9_]{2,35})`?\s*[:\-–]\s*(.+)$/);
+      // Regex captures spaced column names up to 40 characters (e.g. "Invoice No: ...", "Unit Price: ...")
+      const match = trimmed.match(/^`?([A-Za-z0-9_][A-Za-z0-9_\s\-]{0,39}[A-Za-z0-9_]|[A-Za-z0-9_]{1,40})`?\s*[:\-–]\s*(.+)$/);
       if (match) {
         const colName = match[1].trim();
         const definition = match[2].trim();
@@ -165,11 +176,12 @@ export const Datasets = {
    */
   async fetchKaggleDetails(datasetRef, username, key) {
     if (!datasetRef) return null;
-    const authHeaders = (username && key) ? { "Authorization": "Basic " + btoa(`${username.trim()}:${key.trim()}`) } : {};
+    const authHeaders = (username && key) ? { "Authorization": "Basic " + safeBtoa(`${username.trim()}:${key.trim()}`) } : {};
 
-    // 1. Try local server proxy first
+    // 1. Try local server proxy first (secure, direct HTTPS, handles credentials)
     try {
-      const baseUrl = (typeof window !== "undefined" && window.location?.origin) ? "" : "http://localhost:3000";
+      const isHttp = typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null" && window.location.protocol.startsWith("http");
+      const baseUrl = isHttp ? "" : "http://localhost:3000";
       const localProxyUrl = `${baseUrl}/api/kaggle?ref=${encodeURIComponent(datasetRef)}`;
       const res = await fetch(localProxyUrl, { headers: authHeaders });
       if (res.ok) {
@@ -188,15 +200,13 @@ export const Datasets = {
       console.warn("Local Kaggle details proxy call failed:", localErr);
     }
 
-    if (!username || !key) return null;
-
-    // 2. Fallback to public CORS proxies if running static host
+    // 2. Fallback to public CORS proxies without leaking credentials (SEC-04)
     const targetUrl = `https://www.kaggle.com/api/v1/datasets/view/${encodeURI(datasetRef)}`;
-    const authHeader = "Basic " + btoa(`${username.trim()}:${key.trim()}`);
     for (const proxyFn of CORS_PROXIES) {
       try {
         const proxiedUrl = proxyFn(targetUrl);
-        const res = await fetch(proxiedUrl, { headers: { "Authorization": authHeader, "Accept": "application/json" } });
+        // Note: Do NOT forward private Auth header to third-party public proxies (SEC-04)
+        const res = await fetch(proxiedUrl, { headers: { "Accept": "application/json" } });
         if (res.ok) {
           const data = await res.json();
           const description = data.descriptionNullable || data.description || data.subtitleNullable || data.subtitle || "";
@@ -222,8 +232,9 @@ export const Datasets = {
   async searchKaggle(keywords = "sales", username, key, limit = 15) {
     // 1. Try local server proxy first (fastest, direct HTTPS to Kaggle, no CORS block)
     try {
-      const authHeaders = (username && key) ? { "Authorization": "Basic " + btoa(`${username.trim()}:${key.trim()}`) } : {};
-      const baseUrl = (typeof window !== "undefined" && window.location?.origin) ? "" : "http://localhost:3000";
+      const authHeaders = (username && key) ? { "Authorization": "Basic " + safeBtoa(`${username.trim()}:${key.trim()}`) } : {};
+      const isHttp = typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null" && window.location.protocol.startsWith("http");
+      const baseUrl = isHttp ? "" : "http://localhost:3000";
       const localProxyUrl = `${baseUrl}/api/kaggle?search=${encodeURIComponent(keywords)}&sortBy=votes&filetype=csv&pageSize=${limit}`;
       const res = await fetch(localProxyUrl, { headers: authHeaders });
 
@@ -246,19 +257,16 @@ export const Datasets = {
       console.warn("Local Kaggle proxy call error:", localErr);
     }
 
-    if (!username || !key) return [];
-
-    // 2. Fallback to public CORS proxies if running on static host
+    // 2. Fallback to public CORS proxies without leaking user credentials (SEC-04)
     const targetUrl = `https://www.kaggle.com/api/v1/datasets/list?search=${encodeURIComponent(keywords)}&sortBy=votes&filetype=csv&pageSize=${limit}`;
-    const authHeader = "Basic " + btoa(`${username.trim()}:${key.trim()}`);
 
     for (const proxyFn of CORS_PROXIES) {
       try {
         const proxiedUrl = proxyFn(targetUrl);
+        // Note: Do NOT forward private Auth header to third-party public proxies (SEC-04)
         const res = await fetch(proxiedUrl, {
           method: "GET",
           headers: {
-            "Authorization": authHeader,
             "Accept": "application/json"
           }
         });

@@ -13,6 +13,9 @@ const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models
 
 // Model fallbacks in case an experimental preview model returns a 404
 const MODEL_FALLBACKS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
   "gemini-2.5-flash",
   "gemini-2.0-flash",
   "gemini-1.5-flash"
@@ -87,6 +90,8 @@ function cleanAndParseJSON(rawText) {
     }
 
     if (inStr) {
+      // Strip any trailing unescaped backslashes so we don't accidentally produce an escaped quote (\")
+      candidate = candidate.replace(/\\+$/, "");
       candidate += '"';
     }
 
@@ -172,9 +177,10 @@ async function callGeminiAPI({ model, apiKey, systemInstruction, prompt, schemaT
         const errorData = await response.json().catch(() => ({}));
         const errMsg = errorData.error?.message || `HTTP ${response.status}`;
         
-        // If 404 (model not found), proceed to fallback model
-        if (response.status === 404 && modelsToTry.indexOf(currentModel) < modelsToTry.length - 1) {
-          console.warn(`Model ${currentModel} not available (404), falling back...`);
+        // If 404 (model not found), 429 (rate limit / quota), or 503 (model overloaded), proceed to fallback model
+        const isFallbackStatus = response.status === 404 || response.status === 429 || response.status === 503;
+        if (isFallbackStatus && modelsToTry.indexOf(currentModel) < modelsToTry.length - 1) {
+          console.warn(`Model ${currentModel} returned HTTP ${response.status}, falling back to alternative model...`);
           lastError = new Error(errMsg);
           continue;
         }
@@ -1056,9 +1062,10 @@ function evaluateGauntletOffline(question, expectedAnswer, userAnswer) {
   if (!userAnswer || userAnswer.length < 5) {
     return {
       score: 2,
-      feedback: "Answer is too brief to demonstrate full technical competency to an interviewer.",
+      feedback: "Answer is too brief to demonstrate full technical competency to an interviewer. [Offline Heuristic Estimate]",
       correctAnswer: expectedAnswer,
-      improvement: "State the specific function name and provide the exact reasoning."
+      improvement: "State the specific function name and provide the exact reasoning.",
+      evaluationMode: "Offline Heuristic Estimate"
     };
   }
 
@@ -1087,11 +1094,12 @@ function evaluateGauntletOffline(question, expectedAnswer, userAnswer) {
 
   return {
     score,
-    feedback: score >= 7
+    feedback: (score >= 7
       ? "Strong response! You addressed the core technical mechanics clearly."
-      : "Good conceptual start. Ensure you explicitly name the required formula syntax and explain the risk mitigation.",
+      : "Good conceptual start. Ensure you explicitly name the required formula syntax and explain the risk mitigation.") + " [Offline Heuristic Estimate]",
     correctAnswer: expectedAnswer,
-    improvement: "In an interview, start with the direct recommendation before elaborating on the rationale."
+    improvement: "In an interview, start with the direct recommendation before elaborating on the rationale.",
+    evaluationMode: "Offline Heuristic Estimate"
   };
 }
 
@@ -1101,8 +1109,9 @@ function evaluateVerbalDefenseOffline(question, context, userResponse) {
     return {
       scores: { accuracy: 1, clarity: 1, interviewLanguage: 1 },
       total: 3,
-      feedback: "Response is too short. In an interview, deliver a complete 2–4 sentence structured explanation.",
-      improvedPhrase: "I recommend decoupling data preparation into Power Query to preserve the immutability of raw files and automate recurring refreshes without risk of formula corruption."
+      feedback: "Response is too short. In an interview, deliver a complete 2–4 sentence structured explanation. [Offline Heuristic Estimate]",
+      improvedPhrase: "I recommend decoupling data preparation into Power Query to preserve the immutability of raw files and automate recurring refreshes without risk of formula corruption.",
+      evaluationMode: "Offline Heuristic Estimate"
     };
   }
 
@@ -1133,10 +1142,11 @@ function evaluateVerbalDefenseOffline(question, context, userResponse) {
   return {
     scores: { accuracy: acc, clarity: cla, interviewLanguage: lang },
     total,
-    feedback: total >= 8
+    feedback: (total >= 8
       ? "Outstanding verbal defense! You used strong technical justification and communicated risk mitigation clearly."
-      : "Solid explanation. To reach a perfect 10/10, avoid vague terms like 'it's better' and explicitly explain the architectural trade-off.",
-    improvedPhrase: "I advise XLOOKUP because direct range references eliminate silent formula breaks when columns are inserted, and the native default to exact match avoids approximate lookup risks."
+      : "Solid explanation. To reach a perfect 10/10, avoid vague terms like 'it's better' and explicitly explain the architectural trade-off.") + " [Offline Heuristic Estimate]",
+    improvedPhrase: "I advise XLOOKUP because direct range references eliminate silent formula breaks when columns are inserted, and the native default to exact match avoids approximate lookup risks.",
+    evaluationMode: "Offline Heuristic Estimate"
   };
 }
 

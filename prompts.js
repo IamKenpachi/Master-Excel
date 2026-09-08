@@ -150,7 +150,7 @@ Never stop midway. Never output markdown code fences (like \`\`\`json). Output p
 /**
  * Builds the user prompt for generating a complete mock test
  */
-export function buildTestGenerationPrompt({ difficulty, topics, datasetMeta, taskCount, mode = "case_study", randomSeed = Date.now() }) {
+export function buildTestGenerationPrompt({ difficulty, topics, datasetMeta, taskCount, randomSeed = Date.now() }) {
   const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.intermediate;
   const industry = INDUSTRIES[Math.floor(Math.random() * INDUSTRIES.length)];
   const count = taskCount ? parseInt(taskCount, 10) : config.taskCount;
@@ -310,9 +310,6 @@ Return ONLY a valid JSON array of the top ${count} items:
 /**
  * Creative AI-Powered Quick Drill Generator Prompt
  */
-/**
- * Creative AI-Powered Quick Drill Generator Prompt
- */
 export function buildDrillGenerationPrompt({ topic, datasetMeta, difficulty = "intermediate", count = 5, drillMode = "scenario" }) {
   let datasetContext = "";
   if (datasetMeta && datasetMeta.name) {
@@ -411,11 +408,11 @@ Respond ONLY with a valid JSON object matching this exact structure:
 /**
  * Single-question contextual hint generator
  */
-export function buildHintPrompt(task, scenario) {
+export function buildHintPrompt(task = {}, scenario = {}) {
   return `You are an Excel interview mentor. Provide a concise, encouraging hint for this interview task:
-Scenario: ${scenario.background}
-Task: ${task.instruction}
-Category: ${task.category}
+Scenario: ${scenario?.background || "Excel business case study"}
+Task: ${task?.instruction || "Excel analysis task"}
+Category: ${task?.category || "Excel"}
 
 Format: 2 sentences max. Give candidate the conceptual direction (e.g. which function or feature to look for) without giving away the full formula syntax.`;
 }

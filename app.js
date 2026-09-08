@@ -81,56 +81,41 @@ function initUI() {
     });
   }
 
-  // Drill workout mode pills
-  document.querySelectorAll(".drill-mode-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".drill-mode-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.drillMode = btn.dataset.mode || "scenario";
-      const selectMode = document.getElementById("select-drill-mode");
-      if (selectMode) selectMode.value = state.drillMode;
-
-      const verbalArea = document.getElementById("verbal-defense-area");
-      const qContainer = document.getElementById("drill-questions-container");
-      if (state.drillMode === "verbal_defense") {
-        if (qContainer) qContainer.style.display = "none";
-        if (verbalArea) {
-          verbalArea.classList.remove("hidden");
-          verbalArea.style.display = "block";
-        }
-        generateVerbalDefenseDrill();
-      } else {
-        if (verbalArea) {
-          verbalArea.classList.add("hidden");
-          verbalArea.style.display = "none";
-        }
-      }
+  function setDrillMode(mode) {
+    state.drillMode = mode || "scenario";
+    document.querySelectorAll(".drill-mode-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.mode === state.drillMode);
     });
+    const selectMode = document.getElementById("select-drill-mode");
+    if (selectMode && selectMode.value !== state.drillMode) {
+      selectMode.value = state.drillMode;
+    }
+
+    const verbalArea = document.getElementById("verbal-defense-area");
+    const qContainer = document.getElementById("drill-questions-container");
+    if (state.drillMode === "verbal_defense") {
+      if (qContainer) qContainer.style.display = "none";
+      if (verbalArea) {
+        verbalArea.classList.remove("hidden");
+        verbalArea.style.display = "block";
+      }
+      generateVerbalDefenseDrill();
+    } else {
+      if (verbalArea) {
+        verbalArea.classList.add("hidden");
+        verbalArea.style.display = "none";
+      }
+    }
+  }
+
+  // Drill workout mode pills & selector
+  document.querySelectorAll(".drill-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => setDrillMode(btn.dataset.mode));
   });
 
   const selectDrillMode = document.getElementById("select-drill-mode");
   if (selectDrillMode) {
-    selectDrillMode.addEventListener("change", (e) => {
-      state.drillMode = e.target.value;
-      document.querySelectorAll(".drill-mode-btn").forEach(b => {
-        b.classList.toggle("active", b.dataset.mode === state.drillMode);
-      });
-      const verbalArea = document.getElementById("verbal-defense-area");
-      const qContainer = document.getElementById("drill-questions-container");
-      if (state.drillMode === "verbal_defense") {
-        if (qContainer) qContainer.style.display = "none";
-        if (verbalArea) {
-          verbalArea.classList.remove("hidden");
-          verbalArea.style.display = "block";
-        }
-        generateVerbalDefenseDrill();
-      } else {
-        if (verbalArea) {
-          verbalArea.classList.add("hidden");
-          verbalArea.style.display = "none";
-        }
-      }
-    });
+    selectDrillMode.addEventListener("change", (e) => setDrillMode(e.target.value));
   }
 
   // Strategy select toggle
@@ -171,6 +156,11 @@ function switchScreen(screenId) {
 
   const activeTabBtn = document.querySelector(`.nav-btn[data-screen="${screenId}"]`);
   if (activeTabBtn) activeTabBtn.classList.add("active");
+
+  if (screenId !== "screen-progress" && state.gauntletTimerId) {
+    clearInterval(state.gauntletTimerId);
+    state.gauntletTimerId = null;
+  }
 
   if (screenId === "screen-progress") {
     updateProgressDashboard();
@@ -561,6 +551,68 @@ function escapeHtml(str) {
 }
 
 /**
+ * Extract inner text of a function call, handling nested parentheses and strings
+ */
+function extractFunctionInner(formula, funcName) {
+  const regex = new RegExp(`\\b${funcName}\\s*\\(`, "i");
+  const match = regex.exec(formula);
+  if (!match) return null;
+  const startIdx = match.index + match[0].length;
+  let depth = 1;
+  let inQuotes = false;
+  let i = startIdx;
+  while (i < formula.length && depth > 0) {
+    const c = formula[i];
+    if (c === '"') inQuotes = !inQuotes;
+    else if (!inQuotes) {
+      if (c === '(') depth++;
+      else if (c === ')') depth--;
+    }
+    if (depth === 0) break;
+    i++;
+  }
+  return formula.substring(startIdx, i);
+}
+
+/**
+ * Split arguments of a function call taking into account quoted strings,
+ * nested parentheses, and structured reference brackets.
+ */
+function splitFormulaArguments(str) {
+  const args = [];
+  let current = "";
+  let inQuotes = false;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+    } else if (!inQuotes) {
+      if (ch === '(') parenDepth++;
+      else if (ch === ')') parenDepth = Math.max(0, parenDepth - 1);
+      else if (ch === '[') bracketDepth++;
+      else if (ch === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+
+      if (ch === ',' && parenDepth === 0 && bracketDepth === 0) {
+        args.push(current.trim());
+        current = "";
+        continue;
+      }
+      current += ch;
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim() || args.length > 0) {
+    args.push(current.trim());
+  }
+  return args;
+}
+
+/**
  * Live Excel Formula Linter & Interview Syntax Validator
  */
 export function lintExcelFormula(formula) {
@@ -600,13 +652,13 @@ export function lintExcelFormula(formula) {
     };
   }
 
-  // Rule 4: Check balanced parentheses () (ignoring text inside quotes)
+  // Rule 4: Check balanced parentheses ()
   let openParen = 0;
-  let inQuote = false;
+  let inQuotes = false;
   for (let i = 0; i < trimmed.length; i++) {
     const ch = trimmed[i];
-    if (ch === '"') inQuote = !inQuote;
-    if (!inQuote) {
+    if (ch === '"') inQuotes = !inQuotes;
+    if (!inQuotes) {
       if (ch === '(') openParen++;
       if (ch === ')') openParen--;
     }
@@ -623,14 +675,16 @@ export function lintExcelFormula(formula) {
 
   // Rule 5: XLOOKUP argument count syntax check (minimum 3 arguments)
   if (/\bXLOOKUP\s*\(/i.test(trimmed)) {
-    const inner = trimmed.replace(/^.*?XLOOKUP\s*\(/i, "").replace(/\)[^)]*$/, "");
-    const args = inner.split(",");
-    if (args.length < 3) {
-      return {
-        status: "error",
-        badge: "ARGUMENT COUNT",
-        message: "XLOOKUP requires at least 3 arguments: =XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found])."
-      };
+    const inner = extractFunctionInner(trimmed, "XLOOKUP");
+    if (inner !== null) {
+      const args = splitFormulaArguments(inner);
+      if (args.length < 3) {
+        return {
+          status: "error",
+          badge: "ARGUMENT COUNT",
+          message: "XLOOKUP requires at least 3 arguments: =XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found])."
+        };
+      }
     }
   }
 
@@ -652,14 +706,16 @@ export function lintExcelFormula(formula) {
 
   // Rule 7: VLOOKUP exact match check
   if (/\bVLOOKUP\s*\(/i.test(trimmed)) {
-    const inner = trimmed.replace(/^.*?VLOOKUP\s*\(/i, "").replace(/\)[^)]*$/, "");
-    const args = inner.split(",");
-    if (args.length < 4 || (!args[3].toLowerCase().includes("false") && !args[3].trim().startsWith("0"))) {
-      return {
-        status: "warning",
-        badge: "INTERVIEW PITFALL",
-        message: "💡 Missing exact-match flag in VLOOKUP. Always pass FALSE (or 0) as 4th parameter in business analysis interviews."
-      };
+    const inner = extractFunctionInner(trimmed, "VLOOKUP");
+    if (inner !== null) {
+      const args = splitFormulaArguments(inner);
+      if (args.length < 4 || (!args[3].toLowerCase().includes("false") && !args[3].trim().startsWith("0"))) {
+        return {
+          status: "warning",
+          badge: "INTERVIEW PITFALL",
+          message: "💡 Missing exact-match flag in VLOOKUP. Always pass FALSE (or 0) as 4th parameter in business analysis interviews."
+        };
+      }
     }
   }
 
@@ -1074,76 +1130,12 @@ function renderTasksTable(tasks) {
       </td>
     `;
 
-    // Row click selects task row and connects to formula bar
-    row.addEventListener("click", () => {
-      selectTaskRow(taskNum);
-    });
-
-    // Checkbox toggle
-    const checkbox = row.querySelector(".task-checkbox");
-    checkbox.addEventListener("change", (e) => {
-      const isDone = e.target.checked;
-      row.classList.toggle("completed", isDone);
-      saveTaskState(taskNum, { done: isDone });
-    });
-
-    // Rating buttons
-    row.querySelectorAll(".rating-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const rating = btn.dataset.val;
-        row.querySelectorAll(".rating-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        saveTaskState(taskNum, { rating, category: task.category });
-      });
-    });
-
-    // Progressive Hint toggle button on table row
-    const hintBtn = row.querySelector(".btn-hint-toggle");
-    hintBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (state.isStrictMode) {
-        alert("🛡️ Strict Exam Mode is ACTIVE!\nProgressive hints are locked to simulate authentic interview conditions.");
-        return;
-      }
-      const cur = state.hintTiers[taskNum] || 0;
-      const next = (cur + 1) % 4;
-      state.hintTiers[taskNum] = next;
-      updateHintScaffoldDisplay(taskNum, next, hintBtn);
-    });
-
-    // Hint scaffold topbar tier tab buttons
-    row.querySelectorAll(".btn-hint-tier-select").forEach(tabBtn => {
-      tabBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (state.isStrictMode) return;
-        const targetTier = parseInt(tabBtn.dataset.tier, 10);
-        state.hintTiers[taskNum] = targetTier;
-        updateHintScaffoldDisplay(taskNum, targetTier, hintBtn);
-      });
-    });
-
-    // Hint scaffold dismiss button
-    row.querySelector(".btn-hint-dismiss")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      state.hintTiers[taskNum] = 0;
-      updateHintScaffoldDisplay(taskNum, 0, hintBtn);
-    });
-
-    // Hint scaffold advance buttons inside cards
-    row.querySelectorAll(".btn-hint-advance").forEach(advBtn => {
-      advBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (state.isStrictMode) return;
-        const nextTier = parseInt(advBtn.dataset.next, 10);
-        state.hintTiers[taskNum] = nextTier;
-        updateHintScaffoldDisplay(taskNum, nextTier, hintBtn);
-      });
-    });
-
-    // Copy Code / Syntax buttons
-    row.querySelectorAll(".btn-copy-code").forEach(copyBtn => {
-      copyBtn.addEventListener("click", (e) => {
+    // Delegated click listener per row to avoid repetitive sub-queries
+    row.addEventListener("click", (e) => {
+      const target = e.target;
+      
+      const copyBtn = target.closest(".btn-copy-code");
+      if (copyBtn) {
         e.stopPropagation();
         const codeText = copyBtn.dataset.code || "";
         if (codeText && navigator.clipboard) {
@@ -1152,7 +1144,6 @@ function renderTasksTable(tasks) {
             copyBtn.innerHTML = "✓ Copied!";
             setTimeout(() => { copyBtn.innerHTML = orig; }, 1400);
           }).catch(() => {
-            // Fallback copy
             const textarea = document.createElement("textarea");
             textarea.value = codeText;
             document.body.appendChild(textarea);
@@ -1164,8 +1155,78 @@ function renderTasksTable(tasks) {
             setTimeout(() => { copyBtn.innerHTML = orig; }, 1400);
           });
         }
-      });
+        return;
+      }
+      
+      const ratingBtn = target.closest(".rating-btn");
+      if (ratingBtn) {
+        e.stopPropagation();
+        const rating = ratingBtn.dataset.val;
+        row.querySelectorAll(".rating-btn").forEach(b => b.classList.remove("active"));
+        ratingBtn.classList.add("active");
+        saveTaskState(taskNum, { rating, category: task.category });
+        return;
+      }
+
+      const hintBtn = target.closest(".btn-hint-toggle");
+      if (hintBtn) {
+        e.stopPropagation();
+        if (state.isStrictMode) {
+          alert("🛡️ Strict Exam Mode is ACTIVE!\nProgressive hints are locked to simulate authentic interview conditions.");
+          return;
+        }
+        const cur = state.hintTiers[taskNum] || 0;
+        const next = (cur + 1) % 4;
+        state.hintTiers[taskNum] = next;
+        updateHintScaffoldDisplay(taskNum, next, hintBtn);
+        return;
+      }
+
+      const tabBtn = target.closest(".btn-hint-tier-select");
+      if (tabBtn) {
+        e.stopPropagation();
+        if (state.isStrictMode) return;
+        const targetTier = parseInt(tabBtn.dataset.tier, 10);
+        state.hintTiers[taskNum] = targetTier;
+        const hBtn = row.querySelector(".btn-hint-toggle");
+        updateHintScaffoldDisplay(taskNum, targetTier, hBtn);
+        return;
+      }
+
+      const dismissBtn = target.closest(".btn-hint-dismiss");
+      if (dismissBtn) {
+        e.stopPropagation();
+        state.hintTiers[taskNum] = 0;
+        const hBtn = row.querySelector(".btn-hint-toggle");
+        updateHintScaffoldDisplay(taskNum, 0, hBtn);
+        return;
+      }
+
+      const advBtn = target.closest(".btn-hint-advance");
+      if (advBtn) {
+        e.stopPropagation();
+        if (state.isStrictMode) return;
+        const nextTier = parseInt(advBtn.dataset.next, 10);
+        state.hintTiers[taskNum] = nextTier;
+        const hBtn = row.querySelector(".btn-hint-toggle");
+        updateHintScaffoldDisplay(taskNum, nextTier, hBtn);
+        return;
+      }
+
+      if (!target.closest("input, button, label")) {
+        selectTaskRow(taskNum);
+      }
     });
+
+    // Checkbox toggle
+    const checkbox = row.querySelector(".task-checkbox");
+    if (checkbox) {
+      checkbox.addEventListener("change", (e) => {
+        const isDone = e.target.checked;
+        row.classList.toggle("completed", isDone);
+        saveTaskState(taskNum, { done: isDone });
+      });
+    }
 
     tbody.appendChild(row);
   });
@@ -1452,7 +1513,7 @@ async function openDatasetDetailsModal() {
         }
         if (currentTest) {
           currentTest.datasetMeta = datasetMeta;
-          Storage.saveActiveTest(currentTest);
+          Storage.setActiveTest(currentTest);
         }
         renderDatasetDetailsModal();
         updateSchemaDrawer();
@@ -2996,9 +3057,10 @@ export async function checkDailyGauntlet() {
     };
   }
 
+  const freshData = Storage.getGauntletData();
   const today = Storage.getTodayGauntlet();
   if (today && today.answered) {
-    renderGauntletComplete(today, data);
+    renderGauntletComplete(today, freshData);
   } else if (today) {
     renderGauntletCard(today);
   } else {
@@ -3030,6 +3092,10 @@ export async function generateAndRenderTodayGauntlet() {
     renderGauntletCard(saved);
   } catch (err) {
     console.error("Gauntlet generation error:", err);
+    if (state.gauntletTimerId) {
+      clearInterval(state.gauntletTimerId);
+      state.gauntletTimerId = null;
+    }
     if (body) {
       body.innerHTML = `<p style="color:var(--accent-rose);">Failed to load today's question. Click to retry.</p><button class="btn btn-sm btn-secondary" id="btn-retry-gauntlet">Retry</button>`;
       document.getElementById("btn-retry-gauntlet")?.addEventListener("click", generateAndRenderTodayGauntlet);
@@ -3124,6 +3190,10 @@ export async function submitGauntletAnswer(entry) {
     renderGauntletFeedback(result, entry);
   } catch (err) {
     console.error("Gauntlet grading failed:", err);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit Answer ⚡";
+    }
   }
 }
 

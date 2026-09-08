@@ -1779,7 +1779,7 @@ html, body {
   display: flex;
 }
 
-.modal-content {
+.modal-content, .modal-card {
   background: #0F172A;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
@@ -2076,7 +2076,7 @@ html, body {
     padding: 0.75rem;
   }
 
-  .modal-content {
+  .modal-content, .modal-card {
     padding: 1.5rem;
     max-height: 94vh;
   }
@@ -3229,10 +3229,10 @@ kbd {
 .srs-review-formula-bar input {
   width: 100%;
   padding: 0.85rem 1rem;
-  background: #090D16;
+  background: var(--bg-primary);
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.15));
   border-radius: 8px;
-  color: #38BDF8;
+  color: var(--accent-cyan);
   font-family: 'Consolas', 'Fira Code', monospace;
   font-size: 0.95rem;
 }
@@ -3398,13 +3398,13 @@ kbd {
   color: #EF4444;
   background: rgba(239, 68, 68, 0.15);
   border-color: rgba(239, 68, 68, 0.4);
-  animation: pulse 1s infinite;
+  animation: pulseUrgent 1s infinite alternate;
 }
 
 .gauntlet-answer-area {
   width: 100%;
   min-height: 90px;
-  background: #090D16;
+  background: var(--bg-primary);
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.15));
   border-radius: 8px;
   padding: 0.85rem 1rem;
@@ -3536,7 +3536,7 @@ kbd {
 .verbal-input-wrapper textarea {
   width: 100%;
   min-height: 120px;
-  background: #090D16;
+  background: var(--bg-primary);
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.15));
   border-radius: 8px;
   padding: 1rem 1rem 2rem 1rem;
@@ -3575,7 +3575,7 @@ kbd {
   margin-top: 1.75rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
-  animation: slideDown 0.3s ease-out;
+  animation: fadeIn 0.3s ease-out;
 }
 
 .verbal-score-row {

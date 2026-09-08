@@ -1,8 +1,19 @@
 // export.js - PDF Printing, Excel-Themed Worksheet Export, and Dataset CSV Downloader
 
+export function escapeHtml(str) {
+  if (typeof str !== "string") return String(str ?? "");
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export const Exporter = {
   /**
    * Download synthetic or extracted CSV data directly to the user's computer
+   * Prepends UTF-8 BOM (\uFEFF) so desktop Excel opens accented & currency characters cleanly (ARCH-01)
    */
   downloadCSV(csvContent, filename = "interview_dataset.csv") {
     if (!csvContent) {
@@ -11,7 +22,8 @@ export const Exporter = {
     }
 
     const cleanName = filename.endsWith(".csv") ? filename : `${filename}.csv`;
-    const blob = new Blob([csvContent.trim()], { type: "text/csv;charset=utf-8;" });
+    const bomPrefix = "\uFEFF";
+    const blob = new Blob([bomPrefix + csvContent.trim()], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -34,6 +46,12 @@ export const Exporter = {
     const answerKey = testData.answerKey || [];
     const printWindow = window.open("", "_blank");
 
+    // Guard against browser popup blocker (BUG-01)
+    if (!printWindow) {
+      alert("⚠️ Pop-up window was blocked by your browser. Please allow pop-ups for this site to print the test sheet.");
+      return;
+    }
+
     const answerLookup = {};
     answerKey.forEach((a, idx) => {
       const num = parseInt(a.taskNumber || a.taskNo || a.task_no || a.no || a.number || (idx + 1), 10);
@@ -44,24 +62,30 @@ export const Exporter = {
       const taskNum = parseInt(task.number || task.no || task.taskNo || task.task_no || (idx + 1), 10);
       const ansObj = answerLookup[taskNum];
       const answerCell = includeAnswers && ansObj
-        ? `<div class="answer-text"><strong>${ansObj.answer || ""}</strong><br><small style="color:#555;">${ansObj.explanation || ""}</small></div>`
+        ? `<div class="answer-text"><strong>${escapeHtml(ansObj.answer || "")}</strong><br><small style="color:#555;">${escapeHtml(ansObj.explanation || "")}</small></div>`
         : "";
 
       return `
         <tr>
           <td class="col-no">${taskNum}</td>
-          <td class="col-instructions">${task.instruction || ""}</td>
+          <td class="col-instructions">${escapeHtml(task.instruction || "")}</td>
           <td class="col-answer">${answerCell}</td>
         </tr>
       `;
     }).join("");
+
+    const safeTitle = escapeHtml(test.title || "Excel Test");
+    const safeBackground = escapeHtml(test.scenario?.background || "Technical interview case study.");
+    const safeObjective = escapeHtml(test.scenario?.objective || "Analyze and synthesize the data according to the tasks below.");
+    const safeDifficulty = escapeHtml(test.difficultyLabel || test.difficulty || "Intermediate");
+    const safeMinutes = escapeHtml(String(test.estimatedMinutes || 45));
 
     const printHtml = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>${test.title} - Excel Test</title>
+        <title>${safeTitle} - Excel Test</title>
         <style>
           @page {
             size: A4 portrait;
@@ -74,7 +98,6 @@ export const Exporter = {
             margin: 0;
             padding: 20px;
           }
-          /* Excel Grid look */
           .excel-header {
             margin-bottom: 12px;
           }
@@ -161,14 +184,14 @@ export const Exporter = {
         </div>
 
         <div class="excel-header">
-          <div class="excel-title">${test.title}</div>
+          <div class="excel-title">${safeTitle}</div>
         </div>
 
         <div class="scenario-card">
           <span class="scenario-label">Background</span>
           <span class="scenario-body">
-            ${test.scenario.background}<br><br>
-            <strong>Objective:</strong> ${test.scenario.objective || "Analyze and synthesize the data according to the tasks below."}
+            ${safeBackground}<br><br>
+            <strong>Objective:</strong> ${safeObjective}
           </span>
         </div>
 
@@ -186,12 +209,8 @@ export const Exporter = {
         </table>
 
         <div class="footer-meta">
-          Excel Mock Test Generator • Difficulty: ${test.difficultyLabel || test.difficulty} • Estimated: ${test.estimatedMinutes} mins • Generated via Gemini
+          Excel Mock Test Generator • Difficulty: ${safeDifficulty} • Estimated: ${safeMinutes} mins • Generated via Gemini
         </div>
-
-        <script>
-          // Auto print on load if preferred
-        </script>
       </body>
       </html>
     `;
@@ -207,6 +226,12 @@ export const Exporter = {
     const test = testData.test || testData;
     const answerKey = testData.answerKey || [];
     const printWindow = window.open("", "_blank");
+
+    // Guard against browser popup blocker (BUG-01)
+    if (!printWindow) {
+      alert("⚠️ Pop-up window was blocked by your browser. Please allow pop-ups for this site to print the cheat sheet.");
+      return;
+    }
 
     const answerLookup = {};
     answerKey.forEach((a, idx) => {
@@ -225,26 +250,30 @@ export const Exporter = {
         <tr>
           <td style="font-weight:bold; text-align:center; width:36px; vertical-align:top; border:1px solid #d0d7de; padding:6px;">${taskNum}</td>
           <td style="width:140px; vertical-align:top; border:1px solid #d0d7de; padding:6px;">
-            <strong style="color:#0f5132; font-size:9pt;">${task.category || "Excel"}</strong><br>
-            <span style="font-size:8pt; color:#333;">${task.instruction || ""}</span>
+            <strong style="color:#0f5132; font-size:9pt;">${escapeHtml(task.category || "Excel")}</strong><br>
+            <span style="font-size:8pt; color:#333;">${escapeHtml(task.instruction || "")}</span>
           </td>
           <td style="vertical-align:top; border:1px solid #d0d7de; padding:6px; font-family:Consolas, Monaco, monospace; font-size:8.5pt; color:#107C41; background:#f8fafc;">
-            <strong>${formula}</strong>
+            <strong>${escapeHtml(formula)}</strong>
           </td>
           <td style="vertical-align:top; border:1px solid #d0d7de; padding:6px; font-size:8pt; color:#333;">
-            <strong style="color:#b45309;">💡 Tip:</strong> ${tip}<br>
-            <strong style="color:#6b21a8;">🎙️ Defense:</strong> ${talkingPoint}
+            <strong style="color:#b45309;">💡 Tip:</strong> ${escapeHtml(tip)}<br>
+            <strong style="color:#6b21a8;">🎙️ Defense:</strong> ${escapeHtml(talkingPoint)}
           </td>
         </tr>
       `;
     }).join("");
+
+    const safeTitle = escapeHtml(test.title || "Technical Interview");
+    const safeDifficulty = escapeHtml(test.difficultyLabel || test.difficulty || "Intermediate");
+    const taskLength = (test.tasks || []).length || 15;
 
     const printHtml = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>${test.title} - Technical Interview Defense Sheet</title>
+        <title>${safeTitle} - Technical Interview Defense Sheet</title>
         <style>
           @page {
             size: A4 portrait;
@@ -303,11 +332,11 @@ export const Exporter = {
 
         <div class="sheet-header">
           <div>
-            <div class="sheet-title">⚡ ${test.title}</div>
+            <div class="sheet-title">⚡ ${safeTitle}</div>
             <div style="font-size:9pt; color:#475569; margin-top:2px;">Senior Technical Interview Cheat Sheet • Formulas & Oral Defense</div>
           </div>
           <div class="sheet-meta">
-            <strong>Level:</strong> ${test.difficultyLabel || test.difficulty} • <strong>Tasks:</strong> ${test.tasks?.length || 15}<br>
+            <strong>Level:</strong> ${safeDifficulty} • <strong>Tasks:</strong> ${taskLength}<br>
             Candidate Quick Reference
           </div>
         </div>

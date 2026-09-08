@@ -312,30 +312,15 @@ TX1015,David Rodriguez,"8800 S Commercial Ave, Chicago, IL",60617,2,19.99,FALL20
 let envConfig = {};
 
 /**
- * Automatically fetch and parse .env file when running on local server
+ * Fetch non-sensitive configuration flags from local server (SEC-05)
  */
 export async function loadEnvConfig() {
   try {
-    const res = await fetch(".env");
+    const res = await fetch("/api/config");
     if (!res.ok) return {};
-    const text = await res.text();
-    const parsed = {};
-    text.split("\n").forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) return;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx !== -1) {
-        const key = trimmed.substring(0, eqIdx).trim();
-        let val = trimmed.substring(eqIdx + 1).trim();
-        // Strip surrounding single or double quotes
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-          val = val.slice(1, -1).trim();
-        }
-        if (key && val) parsed[key] = val;
-      }
-    });
-    envConfig = parsed;
-    return parsed;
+    const data = await res.json();
+    envConfig = data || {};
+    return envConfig;
   } catch {
     return {};
   }
@@ -343,7 +328,7 @@ export async function loadEnvConfig() {
 
 export const Storage = {
   getGeminiKey() {
-    return envConfig.GEMINI_API_KEY || localStorage.getItem(STORAGE_KEYS.GEMINI_KEY) || "";
+    return localStorage.getItem(STORAGE_KEYS.GEMINI_KEY) || envConfig.GEMINI_API_KEY || "";
   },
   setGeminiKey(key) {
     if (key) {
@@ -354,7 +339,7 @@ export const Storage = {
   },
 
   getGeminiModel() {
-    return envConfig.GEMINI_MODEL || localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_MODEL;
+    return localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || envConfig.geminiModel || DEFAULT_MODEL;
   },
   setGeminiModel(modelId) {
     localStorage.setItem(STORAGE_KEYS.GEMINI_MODEL, modelId || DEFAULT_MODEL);
@@ -362,8 +347,8 @@ export const Storage = {
 
   getKaggleCredentials() {
     return {
-      username: envConfig.KAGGLE_USERNAME || localStorage.getItem(STORAGE_KEYS.KAGGLE_USER) || sessionStorage.getItem(STORAGE_KEYS.KAGGLE_USER) || "",
-      key: envConfig.KAGGLE_KEY || localStorage.getItem(STORAGE_KEYS.KAGGLE_KEY) || sessionStorage.getItem(STORAGE_KEYS.KAGGLE_KEY) || ""
+      username: localStorage.getItem(STORAGE_KEYS.KAGGLE_USER) || sessionStorage.getItem(STORAGE_KEYS.KAGGLE_USER) || envConfig.KAGGLE_USERNAME || "",
+      key: localStorage.getItem(STORAGE_KEYS.KAGGLE_KEY) || sessionStorage.getItem(STORAGE_KEYS.KAGGLE_KEY) || envConfig.KAGGLE_KEY || ""
     };
   },
   setKaggleCredentials(username, key) {
@@ -389,9 +374,21 @@ export const Storage = {
   saveTestToHistory(testRecord) {
     try {
       const history = this.getHistory();
-      // Keep last 30 tests
-      const updated = [testRecord, ...history.filter(t => t.id !== testRecord.id)].slice(0, 30);
-      localStorage.setItem(STORAGE_KEYS.TEST_HISTORY, JSON.stringify(updated));
+      // Keep last 25 tests
+      let updated = [testRecord, ...history.filter(t => t.id !== testRecord.id)].slice(0, 25);
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEST_HISTORY, JSON.stringify(updated));
+      } catch (quotaErr) {
+        console.warn("Storage quota reached, pruning older tests and synthetic CSV data:", quotaErr);
+        // Prune down to 10 tests and strip heavy CSV from older history items (PERF-02)
+        updated = updated.slice(0, 10).map((item, idx) => {
+          if (idx > 2) {
+            return { ...item, syntheticCsv: "" };
+          }
+          return item;
+        });
+        localStorage.setItem(STORAGE_KEYS.TEST_HISTORY, JSON.stringify(updated));
+      }
     } catch (e) {
       console.warn("Failed to save test history:", e);
     }
@@ -417,6 +414,9 @@ export const Storage = {
   },
   setActiveTest(testObj) {
     sessionStorage.setItem(STORAGE_KEYS.ACTIVE_TEST, JSON.stringify(testObj));
+  },
+  saveActiveTest(testObj) {
+    this.setActiveTest(testObj);
   },
   clearActiveTest() {
     sessionStorage.removeItem(STORAGE_KEYS.ACTIVE_TEST);
@@ -484,7 +484,7 @@ export const Storage = {
     const today = getTodayIso();
     const dueDate = addDaysToDate(today, 1);
     const queue = this.getSRSQueue();
-    const taskNum = task.number || task.id || 1;
+    const taskNum = task.number ?? task.no ?? task.taskNo ?? task.task_no ?? (task.id || 1);
     const taskId = `${testId || "test"}_task${taskNum}`;
 
     const existingIndex = queue.items.findIndex(item => item.taskId === taskId);
@@ -644,16 +644,20 @@ export const Storage = {
         const diffDays = diffCalendarDays(lastDate, today);
         if (diffDays === 1) {
           data.currentStreak = (data.currentStreak || 0) + 1;
+          data.lastAnsweredDate = today;
         } else if (diffDays === 0) {
-          // Same day, streak already counted or unchanged
+          data.lastAnsweredDate = today;
+        } else if (diffDays < 0) {
+          // Past date backlog reviewed, keep existing active streak and do not regress lastAnsweredDate
         } else {
           data.currentStreak = 1;
+          data.lastAnsweredDate = today;
         }
       } else {
         data.currentStreak = 1;
+        data.lastAnsweredDate = today;
       }
       data.longestStreak = Math.max(data.longestStreak || 0, data.currentStreak);
-      data.lastAnsweredDate = today;
     }
 
     localStorage.setItem(STORAGE_KEYS.DAILY_GAUNTLET, JSON.stringify(data));
