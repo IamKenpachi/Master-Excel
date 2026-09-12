@@ -221,6 +221,42 @@
             </div>
           </div>
 
+          <!-- Dataset Schema Fallback / Upload Dropzone (active when selected dataset lacks schema) -->
+          <div id="dataset-schema-fallback-box" class="schema-fallback-box" style="display: none;">
+            <div class="schema-fallback-header">
+              <div class="schema-fallback-title">
+                <span class="schema-fallback-icon" id="schema-fallback-icon">⚠️</span>
+                <div>
+                  <h4 id="schema-fallback-dataset-name">Schema Missing for Selected Dataset</h4>
+                  <p id="schema-fallback-desc">Kaggle does not expose column headers in its metadata API for this dataset. Upload or drop your downloaded CSV so Gemini builds tasks using your exact columns!</p>
+                </div>
+              </div>
+              <span class="schema-fallback-badge" id="schema-fallback-badge">🔒 Generation Locked</span>
+            </div>
+
+            <div class="schema-dropzone" id="schema-dropzone">
+              <input type="file" id="schema-file-input" accept=".csv,text/csv" style="display: none;" />
+              <div class="dropzone-content" id="dropzone-prompt">
+                <span class="dropzone-icon">📁</span>
+                <p class="dropzone-main-text"><strong>Drag & drop your downloaded CSV here</strong>, or <button type="button" class="btn-link" id="btn-browse-csv">Browse file</button></p>
+                <p class="dropzone-sub-text">Header row and top 5 rows are parsed locally in your browser to extract real column names.</p>
+              </div>
+              <div class="dropzone-success" id="dropzone-success" style="display: none;">
+                <div class="dropzone-success-header">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span class="success-icon">✅</span>
+                    <strong id="dropzone-file-name">dataset.csv</strong>
+                    <span id="dropzone-col-count" class="schema-detected-pill">0 columns detected</span>
+                  </div>
+                  <button type="button" class="btn btn-secondary" id="btn-clear-uploaded-csv" style="font-size:0.75rem; padding:3px 8px;">✕ Clear CSV</button>
+                </div>
+                <div class="dropzone-columns-preview" id="dropzone-columns-preview">
+                  <!-- Injected column chips -->
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Daily Gauntlet Card -->
           <div class="gauntlet-card" id="gauntlet-card">
             <div class="gauntlet-header">

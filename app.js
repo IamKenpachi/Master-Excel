@@ -7,7 +7,7 @@ import { Gemini } from "./gemini.js";
 import { Exporter } from "./export.js";
 
 // Global Application State
-const state = {
+export const state = {
   activeScreen: "screen-generator",
   difficulty: "intermediate",
   taskCount: 15,
@@ -16,6 +16,7 @@ const state = {
   selectedTopics: [], // Empty means all topics
   rankedDatasets: [],
   selectedDataset: null,
+  isGenerationLocked: false,
   currentTest: null,
   selectedTaskNum: 1,
   isStrictMode: false,
@@ -53,6 +54,8 @@ if (typeof document !== "undefined") {
     renderDrillTopicSelect();
     updateProgressDashboard();
     checkDailyGauntlet();
+    setupSchemaUploadDropzone();
+    updateGenerateButtonLockState();
 
     // If there's an active test in session, prompt or restore it
     const cachedTest = Storage.getActiveTest();
@@ -133,6 +136,7 @@ function initUI() {
       if (sourceCheckboxes) sourceCheckboxes.style.display = "none";
       document.getElementById("ranked-datasets-section").style.display = "none";
     }
+    updateGenerateButtonLockState();
   });
 
   // Check if Gemini key is set to update banner notice
@@ -448,10 +452,311 @@ function renderRankedDatasetCards(datasets) {
         } catch (e) {
           console.warn("Kaggle dataset details pre-fetch error:", e);
         }
+      } else if (ds.source === "Hugging Face" && (!ds.columns || ds.columns.length === 0)) {
+        try {
+          const hfInfo = await Datasets.fetchHFSchema(ds.id);
+          if (hfInfo && state.selectedDataset?.id === ds.id) {
+            state.selectedDataset.columns = hfInfo.columns;
+            state.selectedDataset.rowCount = hfInfo.rowCount;
+          }
+        } catch (e) {
+          console.warn("HF dataset schema pre-fetch error:", e);
+        }
       }
+
+      updateGenerateButtonLockState();
     });
 
     container.appendChild(card);
+  });
+
+  // Automatically default to top match if none is explicitly selected
+  if (!state.selectedDataset && datasets.length > 0) {
+    state.selectedDataset = datasets[0];
+  }
+
+  const activeDs = state.selectedDataset;
+  if (activeDs && activeDs.source === "Kaggle" && (!activeDs.columns || activeDs.columns.length === 0)) {
+    const creds = Storage.getKaggleCredentials();
+    Datasets.fetchKaggleDetails(activeDs.id, creds.username, creds.key).then(kgInfo => {
+      if (kgInfo && state.selectedDataset?.id === activeDs.id) {
+        if (kgInfo.description && kgInfo.description.length > (state.selectedDataset.description || "").length) {
+          state.selectedDataset.description = kgInfo.description;
+        }
+        if (kgInfo.columns && kgInfo.columns.length > 0) {
+          state.selectedDataset.columns = kgInfo.columns;
+        }
+      }
+      updateGenerateButtonLockState();
+    }).catch(() => updateGenerateButtonLockState());
+  } else if (activeDs && activeDs.source === "Hugging Face" && (!activeDs.columns || activeDs.columns.length === 0)) {
+    Datasets.fetchHFSchema(activeDs.id).then(hfInfo => {
+      if (hfInfo && state.selectedDataset?.id === activeDs.id) {
+        state.selectedDataset.columns = hfInfo.columns;
+        state.selectedDataset.rowCount = hfInfo.rowCount;
+      }
+      updateGenerateButtonLockState();
+    }).catch(() => updateGenerateButtonLockState());
+  } else {
+    updateGenerateButtonLockState();
+  }
+}
+
+/**
+ * Update the Generate Full Mock Test button state and Dataset Fallback Dropzone
+ * Locks generation if a real dataset is selected but lacks column schema
+ */
+export function updateGenerateButtonLockState() {
+  if (typeof document === "undefined") return;
+
+  const genBtn = document.getElementById("btn-generate-test");
+  const fallbackBox = document.getElementById("dataset-schema-fallback-box");
+  const statusText = document.getElementById("generation-status-text");
+  if (!genBtn) return;
+
+  // 1. Synthetic Mode: always unlocked
+  if (state.datasetStrategy === "synthetic") {
+    state.isGenerationLocked = false;
+    genBtn.disabled = false;
+    genBtn.classList.remove("btn-locked");
+    genBtn.innerHTML = `<span>✨</span> Generate Full Mock Test`;
+    genBtn.title = "Generate full test with realistic synthetic data";
+    if (fallbackBox) fallbackBox.style.display = "none";
+    return;
+  }
+
+  // 2. Real Dataset Mode
+  const active = state.selectedDataset || (state.rankedDatasets && state.rankedDatasets[0]);
+
+  // If no dataset has been queried or chosen yet, default to unlocked
+  if (!active) {
+    state.isGenerationLocked = false;
+    genBtn.disabled = false;
+    genBtn.classList.remove("btn-locked");
+    genBtn.innerHTML = `<span>✨</span> Generate Full Mock Test`;
+    genBtn.title = "";
+    if (fallbackBox) fallbackBox.style.display = "none";
+    return;
+  }
+
+  const hasColumns = Array.isArray(active.columns) && active.columns.length > 0;
+
+  if (!hasColumns) {
+    // LOCKED STATE
+    state.isGenerationLocked = true;
+    genBtn.disabled = true;
+    genBtn.classList.add("btn-locked");
+    genBtn.innerHTML = `<span>🔒</span> Upload CSV to Unlock Generation`;
+    genBtn.title = `Schema missing for "${active.title || active.name}". Upload your downloaded CSV to unlock.`;
+
+    if (fallbackBox) {
+      fallbackBox.style.display = "block";
+      fallbackBox.classList.remove("verified");
+
+      const dsNameEl = document.getElementById("schema-fallback-dataset-name");
+      if (dsNameEl) dsNameEl.textContent = `Schema Missing for "${active.title || active.name}"`;
+
+      const iconEl = document.getElementById("schema-fallback-icon");
+      if (iconEl) iconEl.textContent = "⚠️";
+
+      const badgeEl = document.getElementById("schema-fallback-badge");
+      if (badgeEl) {
+        badgeEl.textContent = "🔒 Generation Locked";
+        badgeEl.className = "schema-fallback-badge";
+      }
+
+      const promptEl = document.getElementById("dropzone-prompt");
+      if (promptEl) promptEl.style.display = "flex";
+
+      const successEl = document.getElementById("dropzone-success");
+      if (successEl) successEl.style.display = "none";
+    }
+
+    if (statusText && !statusText.textContent.includes("⏳") && !statusText.textContent.includes("Generating")) {
+      statusText.textContent = `Schema required for "${active.title || active.name}". Upload CSV above to unlock test generation.`;
+    }
+  } else {
+    // UNLOCKED STATE
+    state.isGenerationLocked = false;
+    genBtn.disabled = false;
+    genBtn.classList.remove("btn-locked");
+    genBtn.innerHTML = `<span>✨</span> Generate Full Mock Test`;
+    genBtn.title = "Generate full mock test calibrated to this verified schema";
+
+    if (fallbackBox) {
+      if (active.isUploaded) {
+        fallbackBox.style.display = "block";
+        fallbackBox.classList.add("verified");
+
+        const dsNameEl = document.getElementById("schema-fallback-dataset-name");
+        if (dsNameEl) dsNameEl.textContent = `Schema Verified for "${active.title || active.name}"`;
+
+        const iconEl = document.getElementById("schema-fallback-icon");
+        if (iconEl) iconEl.textContent = "✅";
+
+        const badgeEl = document.getElementById("schema-fallback-badge");
+        if (badgeEl) {
+          badgeEl.textContent = `✓ Verified (${active.columns.length} cols)`;
+          badgeEl.className = "schema-fallback-badge verified";
+        }
+
+        const promptEl = document.getElementById("dropzone-prompt");
+        if (promptEl) promptEl.style.display = "none";
+
+        const successEl = document.getElementById("dropzone-success");
+        if (successEl) successEl.style.display = "block";
+      } else {
+        fallbackBox.style.display = "none";
+      }
+    }
+  }
+}
+
+/**
+ * Handle CSV File Upload via File Input or Drag-and-Drop
+ */
+export function handleCsvFileUpload(file) {
+  if (!file) return;
+  const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv") || file.type === "text/plain";
+  if (!isCsv) {
+    alert("Please upload a valid CSV (.csv) file.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target?.result || "";
+    if (!text.trim()) {
+      alert("The uploaded CSV file appears to be empty.");
+      return;
+    }
+
+    const active = state.selectedDataset || (state.rankedDatasets && state.rankedDatasets[0]) || {
+      id: "uploaded-" + Date.now(),
+      title: file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
+      source: "User Upload"
+    };
+    state.selectedDataset = active;
+
+    const parsed = parseDatasetSchema(text, active.title || file.name);
+    if (!parsed.columns || parsed.columns.length === 0) {
+      alert("Could not detect any column headers in this CSV. Please verify file format.");
+      return;
+    }
+
+    active.columns = parsed.columns;
+    active.rowCount = parsed.rowCount > 0 ? `${parsed.rowCount.toLocaleString()} rows` : "1,000+";
+    active.isUploaded = true;
+    active.fileName = file.name;
+
+    // Store first 20 rows of actual CSV as syntheticCsv for Schema Inspector and Gemini prompt
+    const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+    active.syntheticCsv = lines.slice(0, 21).join("\n");
+
+    // Populate preview chips in dropzone
+    const previewEl = document.getElementById("dropzone-columns-preview");
+    if (previewEl) {
+      previewEl.innerHTML = parsed.columns.map(c => `
+        <span class="dropzone-col-chip" title="Type: ${c.type} | Sample: ${c.sample || '—'}">
+          <strong>${c.name}</strong>
+          <span class="dropzone-col-type">${c.type}</span>
+        </span>
+      `).join("");
+    }
+
+    const fileNameEl = document.getElementById("dropzone-file-name");
+    if (fileNameEl) fileNameEl.textContent = file.name;
+
+    const countEl = document.getElementById("dropzone-col-count");
+    if (countEl) countEl.textContent = `${parsed.columns.length} columns verified`;
+
+    updateGenerateButtonLockState();
+
+    const statusText = document.getElementById("generation-status-text");
+    if (statusText) {
+      statusText.textContent = `✓ Schema verified: ${parsed.columns.length} columns extracted from "${file.name}". Ready to generate test!`;
+    }
+  };
+
+  reader.onerror = () => {
+    alert("Error reading CSV file. Please try again.");
+  };
+
+  // Slice first 64KB for instantaneous browser read
+  const slice = file.size > 65536 ? file.slice(0, 65536) : file;
+  reader.readAsText(slice);
+}
+
+/**
+ * Setup Schema Upload Dropzone Event Listeners
+ */
+export function setupSchemaUploadDropzone() {
+  if (typeof document === "undefined") return;
+
+  const dropzone = document.getElementById("schema-dropzone");
+  const fileInput = document.getElementById("schema-file-input");
+  const browseBtn = document.getElementById("btn-browse-csv");
+  const clearBtn = document.getElementById("btn-clear-uploaded-csv");
+
+  if (!dropzone || !fileInput) return;
+
+  // Browse button trigger
+  browseBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fileInput.click();
+  });
+
+  // Dropzone click trigger
+  dropzone.addEventListener("click", (e) => {
+    if (e.target.closest("#btn-clear-uploaded-csv")) return;
+    const promptEl = document.getElementById("dropzone-prompt");
+    if (promptEl && promptEl.style.display !== "none") {
+      fileInput.click();
+    }
+  });
+
+  // File input change
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleCsvFileUpload(file);
+      fileInput.value = "";
+    }
+  });
+
+  // Drag & Drop
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.add("dragover");
+  });
+
+  dropzone.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.remove("dragover");
+  });
+
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.remove("dragover");
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      handleCsvFileUpload(file);
+    }
+  });
+
+  // Clear uploaded CSV
+  clearBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const active = state.selectedDataset || (state.rankedDatasets && state.rankedDatasets[0]);
+    if (active) {
+      active.columns = [];
+      delete active.syntheticCsv;
+      active.isUploaded = false;
+    }
+    updateGenerateButtonLockState();
   });
 }
 
@@ -498,13 +803,25 @@ async function handleGenerateTest() {
           }
         }
 
+        // Schema Safeguard: Block test generation if no columns exist!
+        if (!state.selectedDataset.columns || state.selectedDataset.columns.length === 0) {
+          updateGenerateButtonLockState();
+          alert(`Schema Required: Column headers for "${state.selectedDataset.title}" could not be automatically retrieved. Please upload your downloaded CSV to generate test questions calibrated to your actual spreadsheet.`);
+          const fallbackBox = document.getElementById("dataset-schema-fallback-box");
+          if (fallbackBox) {
+            fallbackBox.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          return;
+        }
+
         datasetMeta = {
           name: state.selectedDataset.title,
           source: state.selectedDataset.source,
           url: state.selectedDataset.url,
           rowCount: state.selectedDataset.rowCount || "10,000+",
           description: state.selectedDataset.description,
-          columns: state.selectedDataset.columns || []
+          columns: state.selectedDataset.columns || [],
+          syntheticCsv: state.selectedDataset.syntheticCsv || ""
         };
       }
     }
@@ -524,6 +841,14 @@ async function handleGenerateTest() {
       testPayload.datasetMeta = datasetMeta;
     }
 
+    // If verified CSV was uploaded, preserve it as syntheticCsv for Schema Inspector
+    if (state.selectedDataset?.syntheticCsv) {
+      testPayload.syntheticCsv = state.selectedDataset.syntheticCsv;
+      if (testPayload.test) {
+        testPayload.test.syntheticCsv = state.selectedDataset.syntheticCsv;
+      }
+    }
+
     // Save test in storage & state
     loadTestIntoView(testPayload, true);
     statusText.textContent = "Test generated successfully!";
@@ -532,8 +857,7 @@ async function handleGenerateTest() {
     alert(`Generation Error: ${err.message}\n\nTip: You can load the built-in offline test without an API key!`);
     statusText.textContent = `Error: ${err.message}`;
   } finally {
-    genBtn.disabled = false;
-    genBtn.innerHTML = `<span>✨</span> Generate Full Mock Test`;
+    updateGenerateButtonLockState();
   }
 }
 

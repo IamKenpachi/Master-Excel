@@ -161,16 +161,28 @@ export function buildTestGenerationPrompt({ difficulty, topics, datasetMeta, tas
 
   let datasetContext = "";
   if (datasetMeta && datasetMeta.name) {
+    let sampleDataSnippet = "";
+    if (datasetMeta.syntheticCsv && datasetMeta.syntheticCsv.trim().length > 0) {
+      const topRows = datasetMeta.syntheticCsv.trim().split(/\r?\n/).slice(0, 8).join("\n");
+      sampleDataSnippet = `
+Sample Rows from User's Verified CSV:
+\`\`\`csv
+${topRows}
+\`\`\`
+CRITICAL: In your JSON response, ensure "syntheticCsv" retains these exact column headers and matching sample data!`;
+    }
+
     datasetContext = `
 <provided_dataset_metadata>
 Dataset Name: ${datasetMeta.name}
 Source: ${datasetMeta.source || "HuggingFace / Kaggle"}
 Row Count Estimate: ${datasetMeta.rowCount || "10,000+"}
 Description: ${datasetMeta.description || "Realistic enterprise data"}
-Columns with Types:
+Columns with Types & Sample Values:
 ${JSON.stringify(datasetMeta.columns || [], null, 2)}
+${sampleDataSnippet}
 </provided_dataset_metadata>
-CRITICAL INSTRUCTION: Tailor the background story, column manipulations, formulas, and Pivot Table tasks specifically around these actual columns!
+CRITICAL INSTRUCTION: You MUST strictly build the business scenario, column manipulations, formulas, and Pivot Table tasks specifically around these actual columns! Do not invent, substitute, or rename columns.
 `;
   } else {
     const csvRows = count >= 20 ? "10-12 rows" : "20-25 rows";

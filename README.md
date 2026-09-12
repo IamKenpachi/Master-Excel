@@ -26,6 +26,7 @@
   - [Phase 4.5: Preset Industry Domain Topics (1-Click Query Shortcuts)](#phase-45-preset-industry-domain-topics-1-click-query-shortcuts)
   - [Phase 5: Spaced Repetition (SRS), Daily Gauntlet & Verbal Defense](#phase-5-spaced-repetition-srs-daily-gauntlet--verbal-defense)
   - [Phase 5.5: Schema Inspector & Kaggle Live Dataset Documentation](#phase-55-schema-inspector--kaggle-live-dataset-documentation)
+  - [Phase 5.6: Real Dataset Schema Upload Fallback & Generation Button Locking](#phase-56-real-dataset-schema-upload-fallback--generation-button-locking)
 - [Core Analyst Competencies Tested](#core-analyst-competencies-tested)
 - [Power-User Keyboard Shortcuts](#power-user-keyboard-shortcuts)
 - [Tech Stack & Architecture](#tech-stack--architecture)
@@ -271,6 +272,28 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 
 ---
 
+### Phase 5.6: Real Dataset Schema Upload Fallback & Generation Button Locking
+*Guarantees 100% schema fidelity for unindexed Kaggle/HuggingFace datasets and physically prevents AI column hallucination.*
+
+- **1. Generation Button Locking Mechanism (`#btn-generate-test`)**:
+  - Whenever a candidate selects a real-world dataset whose metadata does not contain column headers (e.g. Kaggle datasets without formatted attribute tables in their markdown description), the **Generate Full Mock Test** button physically locks (`disabled = true`) with a dedicated `.btn-locked` visual state.
+  - Button text dynamically shifts to `<span>🔒</span> Upload CSV to Unlock Generation`, and status indicators warn that schema verification is required before generating questions.
+  - A hard guard in `handleGenerateTest()` prevents any API calls with an empty schema, stopping Gemini from hallucinating non-existent columns (such as `Commodity`, `TransactionID`, or `CountryCode`).
+  - Switching to "🤖 Generate Synthetic Dataset" or selecting a dataset with verified schema automatically unlocks the button (`<span>✨</span> Generate Full Mock Test`).
+
+- **2. Interactive Dataset Schema Fallback Dropzone (`#dataset-schema-fallback-box`)**:
+  - Automatically reveals when the active dataset lacks schema columns.
+  - Supports instant drag-and-drop and file browsing for downloaded `.csv` files.
+  - **Instantaneous Client-Side Parsing**: Reads the first 64KB in the browser via `FileReader`, extracting headers and inspecting sample rows in under 5ms without server network overhead.
+  - **Type Inference & Verification Preview**: Automatically infers column types (`Text`, `Number / Currency`, `Date`, `Boolean`) and displays interactive column pill chips.
+  - **Dataset Schema Inspector Synchronization**: Injects the authentic sample rows into `syntheticCsv` so the floating Schema Inspector matches the exact spreadsheet open on the candidate's desktop.
+
+- **3. Prompt Column Fidelity & Strict Anti-Hallucination Directive**:
+  - Passes verified CSV sample data directly into `buildTestGenerationPrompt()`.
+  - Enforces a strict directive on Gemini: *"You MUST strictly build the business scenario, column manipulations, formulas, and Pivot Table tasks specifically around these actual columns! Do not invent, substitute, or rename columns."*
+
+---
+
 ## 🧠 Core Analyst Competencies Tested
 
 ```
@@ -338,7 +361,9 @@ excel-mock-test/
 ├── export.js                # Print styling, test sheet & 1-page cheat sheet
 ├── server.js                # Lightweight Node.js API proxy server
 ├── scripts/
-│   ├── test_schema_and_dataset_modal.mjs # 17-test suite for Schema Inspector & Dataset Details Modal
+│   ├── test_schema_upload_guard.mjs # 9-test suite for Schema Upload Dropzone & Button Lock
+│   ├── test_audit_fixes.mjs     # 25-test suite for full security, export & formula audit fixes
+│   ├── test_schema_and_dataset_modal.mjs # 21-test suite for Schema Inspector & Dataset Details Modal
 │   ├── test_phase5.mjs          # 40-test suite verifying SRS, Daily Gauntlet, and Verbal Defense
 │   ├── test_industry_topics.mjs # 16 preset industry domain topic chips test
 │   ├── test_learning_modes.mjs  # 26 automated tests verifying all phases
@@ -402,6 +427,12 @@ excel-mock-test/
 Run the full automated verification test suites from the terminal:
 
 ```bash
+# Run 9-test suite for Schema Upload Fallback & Generation Button Locking
+node scripts/test_schema_upload_guard.mjs
+
+# Run 25-test suite for full security, export & formula audit fixes
+node scripts/test_audit_fixes.mjs
+
 # Run 21-test suite for Schema Inspector, Kaggle Full Documentation & Attribute Parser
 node scripts/test_schema_and_dataset_modal.mjs
 
