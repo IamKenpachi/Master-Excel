@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 [![Module 2: CV Competency Interviewer](https://img.shields.io/badge/Module%202-CV%20Competency%20Interviewer-6366F1.svg)](#phase-6-dual-module-platform--module-2-cv-competency-interviewer)
 [![Landing Hub: 2-Card Portal](https://img.shields.io/badge/Portal-2--Card%20Welcome%20Hub-10B981.svg)](#phase-65-welcome-hub-2-card-portal-landing-page)
-[![All Test Suites: 123/123 Passing](https://img.shields.io/badge/All%20Suites-123%2F123%20Passing%20(100%25)-10B981.svg)](#automated-testing--verification)
+[![All Test Suites: 131/131 Passing](https://img.shields.io/badge/All%20Suites-131%2F131%20Passing%20(100%25)-10B981.svg)](#automated-testing--verification)
 [![JavaScript](https://img.shields.io/badge/Vanilla_JS-ES6+-F7DF1E.svg?logo=javascript&logoColor=black)](#tech-stack--architecture)
 [![CSS3](https://img.shields.io/badge/Vanilla_CSS-Custom_Design_System-1572B6.svg?logo=css3&logoColor=white)](#tech-stack--architecture)
 [![Node.js](https://img.shields.io/badge/Node.js-v18+-339933.svg?logo=node.js&logoColor=white)](#getting-started)
@@ -287,9 +287,11 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
   - A hard guard in `handleGenerateTest()` prevents any API calls with an empty schema, stopping Gemini from hallucinating non-existent columns (such as `Commodity`, `TransactionID`, or `CountryCode`).
   - Switching to "🤖 Generate Synthetic Dataset" or selecting a dataset with verified schema automatically unlocks the button (`<span>✨</span> Generate Full Mock Test`).
 
-- **2. Interactive Dataset Schema Fallback Dropzone (`#dataset-schema-fallback-box`)**:
-  - Automatically reveals when the active dataset lacks schema columns.
-  - Supports instant drag-and-drop and file browsing for downloaded `.csv` files.
+- **2. Interactive Dataset Schema Fallback & On-Demand Upload Dropzone (`#dataset-schema-fallback-box`)**:
+  - Automatically reveals when the active dataset lacks schema columns (warning state `⚠️`, `🔒 Generation Locked`).
+  - **On-Demand Upload Capability**: When API columns are already detected, the box shifts to a ready state (`📊`, `✨ Ready • Optional Upload`) with generation unlocked (`<span>✨</span> Generate Full Mock Test`). Candidates can generate immediately or choose to drop their downloaded `.csv` file at any time to override.
+  - **Schema & Sample Row Override**: Uploading a CSV backs up the original API metadata and immediately replaces the columns and sample data (`syntheticCsv`) with the local file, ensuring 100% exact parity with the candidate's desktop spreadsheet.
+  - **Clean Revert (`Clear CSV`)**: Clicking `✕ Clear CSV` restores the original API metadata and returns to the ready state without requiring a search reload or refresh.
   - **Instantaneous Client-Side Parsing**: Reads the first 64KB in the browser via `FileReader`, extracting headers and inspecting sample rows in under 5ms without server network overhead.
   - **Type Inference & Verification Preview**: Automatically infers column types (`Text`, `Number / Currency`, `Date`, `Boolean`) and displays interactive column pill chips.
   - **Dataset Schema Inspector Synchronization**: Injects the authentic sample rows into `syntheticCsv` so the floating Schema Inspector matches the exact spreadsheet open on the candidate's desktop.
@@ -503,6 +505,9 @@ node scripts/test_landing_page.mjs
 
 # Run 20-test suite for Module 2: CV Competency-Based Interviewer
 node scripts/test_competency_module.mjs
+
+# Run 8-test suite for On-Demand Dataset Upload & Schema Override
+node scripts/test_dataset_override.mjs
 
 # Run 9-test suite for Schema Upload Fallback & Generation Button Locking
 node scripts/test_schema_upload_guard.mjs

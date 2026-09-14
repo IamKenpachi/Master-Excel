@@ -3675,6 +3675,11 @@ kbd {
   background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.95) 100%);
 }
 
+.schema-fallback-box.ready {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08) 0%, rgba(15, 23, 42, 0.95) 100%);
+}
+
 .schema-fallback-header {
   display: flex;
   align-items: flex-start;
@@ -3725,6 +3730,12 @@ kbd {
   background: rgba(16, 185, 129, 0.15);
   color: var(--excel-green);
   border-color: rgba(16, 185, 129, 0.3);
+}
+
+.schema-fallback-badge.ready {
+  background: rgba(99, 102, 241, 0.15);
+  color: #A5B4FC;
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 .schema-dropzone {

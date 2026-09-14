@@ -591,13 +591,15 @@ export function updateGenerateButtonLockState() {
     genBtn.classList.add("btn-locked");
     genBtn.innerHTML = `<span>🔒</span> Upload CSV to Unlock Generation`;
     genBtn.title = `Schema missing for "${active.title || active.name}". Upload your downloaded CSV to unlock.`;
-
     if (fallbackBox) {
       fallbackBox.style.display = "block";
-      fallbackBox.classList.remove("verified");
+      fallbackBox.className = "schema-fallback-box";
 
       const dsNameEl = document.getElementById("schema-fallback-dataset-name");
       if (dsNameEl) dsNameEl.textContent = `Schema Missing for "${active.title || active.name}"`;
+
+      const descEl = document.getElementById("schema-fallback-desc");
+      if (descEl) descEl.textContent = `${active.source || "Kaggle"} does not expose column headers in its metadata API for this dataset. Upload or drop your downloaded CSV so Gemini builds tasks using your exact columns!`;
 
       const iconEl = document.getElementById("schema-fallback-icon");
       if (iconEl) iconEl.textContent = "⚠️";
@@ -628,18 +630,22 @@ export function updateGenerateButtonLockState() {
 
     if (fallbackBox) {
       if (active.isUploaded) {
+        // Case C: Overridden by uploaded CSV
         fallbackBox.style.display = "block";
-        fallbackBox.classList.add("verified");
+        fallbackBox.className = "schema-fallback-box verified";
 
         const dsNameEl = document.getElementById("schema-fallback-dataset-name");
-        if (dsNameEl) dsNameEl.textContent = `Schema Verified for "${active.title || active.name}"`;
+        if (dsNameEl) dsNameEl.textContent = `Schema Overridden by Local File "${active.fileName || "dataset.csv"}"`;
+
+        const descEl = document.getElementById("schema-fallback-desc");
+        if (descEl) descEl.textContent = `Your local CSV columns and real sample rows have overridden the API metadata. Gemini will generate tasks directly around this file!`;
 
         const iconEl = document.getElementById("schema-fallback-icon");
         if (iconEl) iconEl.textContent = "✅";
 
         const badgeEl = document.getElementById("schema-fallback-badge");
         if (badgeEl) {
-          badgeEl.textContent = `✓ Verified (${active.columns.length} cols)`;
+          badgeEl.textContent = `✓ Overridden (${active.columns.length} cols)`;
           badgeEl.className = "schema-fallback-badge verified";
         }
 
@@ -649,7 +655,30 @@ export function updateGenerateButtonLockState() {
         const successEl = document.getElementById("dropzone-success");
         if (successEl) successEl.style.display = "block";
       } else {
-        fallbackBox.style.display = "none";
+        // Case B: Columns detected via API, ready to generate, with optional CSV override available
+        fallbackBox.style.display = "block";
+        fallbackBox.className = "schema-fallback-box ready";
+
+        const dsNameEl = document.getElementById("schema-fallback-dataset-name");
+        if (dsNameEl) dsNameEl.textContent = `Schema Detected via ${active.source || "API"} (${active.columns.length} Columns)`;
+
+        const descEl = document.getElementById("schema-fallback-desc");
+        if (descEl) descEl.textContent = `Gemini can generate tasks using this schema now, OR drop your downloaded CSV below to override with 100% exact parity from your local spreadsheet.`;
+
+        const iconEl = document.getElementById("schema-fallback-icon");
+        if (iconEl) iconEl.textContent = "📊";
+
+        const badgeEl = document.getElementById("schema-fallback-badge");
+        if (badgeEl) {
+          badgeEl.textContent = "✨ Ready • Optional Upload";
+          badgeEl.className = "schema-fallback-badge ready";
+        }
+
+        const promptEl = document.getElementById("dropzone-prompt");
+        if (promptEl) promptEl.style.display = "flex";
+
+        const successEl = document.getElementById("dropzone-success");
+        if (successEl) successEl.style.display = "none";
       }
     }
   }
@@ -685,6 +714,15 @@ export function handleCsvFileUpload(file) {
     if (!parsed.columns || parsed.columns.length === 0) {
       alert("Could not detect any column headers in this CSV. Please verify file format.");
       return;
+    }
+
+    // Back up original API metadata before overwriting, if not already backed up
+    if (!active.apiBackup && Array.isArray(active.columns) && active.columns.length > 0) {
+      active.apiBackup = {
+        columns: [...active.columns],
+        syntheticCsv: active.syntheticCsv || "",
+        rowCount: active.rowCount || ""
+      };
     }
 
     active.columns = parsed.columns;
@@ -790,14 +828,23 @@ export function setupSchemaUploadDropzone() {
     }
   });
 
-  // Clear uploaded CSV
+  // Clear uploaded CSV / Revert to original API schema if available
   clearBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
     const active = state.selectedDataset || (state.rankedDatasets && state.rankedDatasets[0]);
     if (active) {
-      active.columns = [];
-      delete active.syntheticCsv;
+      if (active.apiBackup) {
+        // Revert to original API metadata
+        active.columns = [...active.apiBackup.columns];
+        active.syntheticCsv = active.apiBackup.syntheticCsv;
+        active.rowCount = active.apiBackup.rowCount;
+        delete active.apiBackup;
+      } else {
+        active.columns = [];
+        delete active.syntheticCsv;
+      }
       active.isUploaded = false;
+      delete active.fileName;
     }
     updateGenerateButtonLockState();
   });
