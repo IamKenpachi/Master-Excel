@@ -1,14 +1,15 @@
 // app.js - Main Application Orchestrator, Router & Interactive Test Controller
 
-import { EXCEL_TOPICS, DIFFICULTY_CONFIG, INDUSTRY_DOMAINS, VERBAL_DEFENSE_TOPICS } from "./prompts.js";
+import { EXCEL_TOPICS, DIFFICULTY_CONFIG, INDUSTRY_DOMAINS, VERBAL_DEFENSE_TOPICS, COMPETENCY_PILLARS } from "./prompts.js";
 import { Storage, DEFAULT_MODEL, SAMPLE_OFFLINE_TEST, AVAILABLE_MODELS, loadEnvConfig } from "./storage.js";
 import { Datasets } from "./datasets.js";
-import { Gemini } from "./gemini.js";
+import { Gemini, SAMPLE_OFFLINE_COMPETENCY_QUESTIONS } from "./gemini.js";
 import { Exporter } from "./export.js";
 
 // Global Application State
 export const state = {
-  activeScreen: "screen-generator",
+  activeScreen: "screen-landing",
+  currentModule: "excel", // "excel" | "competency"
   difficulty: "intermediate",
   taskCount: 15,
   datasetLimit: 3,
@@ -34,6 +35,18 @@ export const state = {
   gauntletTimerId: null,
   gauntletRemainingSecs: 180,
   currentVerbalDrill: null,
+  // Module 2: Competency State
+  competency: {
+    cvText: "",
+    fileName: "",
+    seniority: "mid",
+    industry: "General Analytics",
+    depth: 6,
+    data: null,
+    activePillarFilter: "all",
+    searchFilter: "",
+    activeQuestion: null
+  },
   timer: {
     intervalId: null,
     totalSeconds: 45 * 60,
@@ -48,6 +61,8 @@ if (typeof document !== "undefined") {
     initUI();
     initEventListeners();
     initChatbotUI();
+    initCompetencyUI();
+    initCompetencyEventListeners();
     loadSavedSettings();
     renderTopicChips();
     renderIndustryDomainChips();
@@ -57,10 +72,10 @@ if (typeof document !== "undefined") {
     setupSchemaUploadDropzone();
     updateGenerateButtonLockState();
 
-    // If there's an active test in session, prompt or restore it
+    // If there's an active test in session, restore data in background without leaving landing hub
     const cachedTest = Storage.getActiveTest();
     if (cachedTest && cachedTest.test) {
-      loadTestIntoView(cachedTest, false);
+      loadTestIntoView(cachedTest, false, false);
     }
   });
 }
@@ -150,8 +165,10 @@ function initUI() {
 /**
  * Switch Screen Tabs
  */
-function switchScreen(screenId) {
+export function switchScreen(screenId) {
   state.activeScreen = screenId;
+  if (typeof document === "undefined") return;
+
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.remove("active"));
 
@@ -160,6 +177,32 @@ function switchScreen(screenId) {
 
   const activeTabBtn = document.querySelector(`.nav-btn[data-screen="${screenId}"]`);
   if (activeTabBtn) activeTabBtn.classList.add("active");
+
+  const navLinksExcel = document.getElementById("nav-links-excel");
+  const excelBtn = document.getElementById("btn-module-excel");
+  const compBtn = document.getElementById("btn-module-competency");
+
+  // Manage module buttons and sub-navigation visibility based on current screen
+  if (screenId === "screen-landing") {
+    if (navLinksExcel) navLinksExcel.style.display = "none";
+    excelBtn?.classList.remove("active");
+    excelBtn?.setAttribute("aria-selected", "false");
+    compBtn?.classList.remove("active");
+    compBtn?.setAttribute("aria-selected", "false");
+  } else if (screenId === "screen-competency") {
+    if (navLinksExcel) navLinksExcel.style.display = "none";
+    excelBtn?.classList.remove("active");
+    excelBtn?.setAttribute("aria-selected", "false");
+    compBtn?.classList.add("active");
+    compBtn?.setAttribute("aria-selected", "true");
+  } else {
+    // Any Excel screen: generator, test, answers, drills, progress
+    if (navLinksExcel) navLinksExcel.style.display = "flex";
+    compBtn?.classList.remove("active");
+    compBtn?.setAttribute("aria-selected", "false");
+    excelBtn?.classList.add("active");
+    excelBtn?.setAttribute("aria-selected", "true");
+  }
 
   if (screenId !== "screen-progress" && state.gauntletTimerId) {
     clearInterval(state.gauntletTimerId);
@@ -1193,7 +1236,7 @@ export function parseDatasetSchema(csvText, datasetTitle) {
 /**
  * Load a generated or cached test into the active test view
  */
-function loadTestIntoView(testPayload, saveToHistory = true) {
+function loadTestIntoView(testPayload, saveToHistory = true, switchView = true) {
   if (!testPayload) return;
 
   // Handle bare test objects
@@ -1322,17 +1365,23 @@ function loadTestIntoView(testPayload, saveToHistory = true) {
   // Render Solutions in Answer Key screen
   renderAnswerKey(testPayload);
 
-  // Reset and start countdown timer
+  // Reset countdown timer
   const minutes = test.estimatedMinutes || 45;
   state.timer.totalSeconds = minutes * 60;
   state.timer.remainingSeconds = state.timer.totalSeconds;
-  startTimer();
+  if (switchView) {
+    startTimer();
+  } else {
+    updateTimerDisplay();
+  }
 
   // Indicate active test in navbar
   document.getElementById("active-test-indicator").style.display = "inline-block";
 
-  // Switch to Active Test Screen
-  switchScreen("screen-test");
+  if (switchView) {
+    // Switch to Active Test Screen
+    switchScreen("screen-test");
+  }
 
   // Automatically select first task row
   selectTaskRow(1);
@@ -2697,7 +2746,21 @@ function initEventListeners() {
     btn.addEventListener("click", () => switchScreen(btn.dataset.screen));
   });
 
-  document.getElementById("nav-brand").addEventListener("click", () => switchScreen("screen-generator"));
+  document.getElementById("nav-brand")?.addEventListener("click", () => switchScreen("screen-landing"));
+
+  // Welcome Hub Portal Launch Actions
+  document.getElementById("btn-launch-excel")?.addEventListener("click", () => switchModule("excel"));
+  document.getElementById("btn-launch-competency")?.addEventListener("click", () => switchModule("competency"));
+  document.getElementById("portal-card-excel")?.addEventListener("click", (e) => {
+    if (!e.target.closest("button") && !e.target.closest("a")) {
+      switchModule("excel");
+    }
+  });
+  document.getElementById("portal-card-competency")?.addEventListener("click", (e) => {
+    if (!e.target.closest("button") && !e.target.closest("a")) {
+      switchModule("competency");
+    }
+  });
 
   // Difficulty Pills
   document.querySelectorAll(".diff-btn").forEach(btn => {
@@ -3777,4 +3840,956 @@ export function renderVerbalDefenseFeedback(result, drillObj) {
     generateVerbalDefenseDrill();
   });
 }
+
+// =============================================================================
+// MODULE 2: CV COMPETENCY-BASED INTERVIEW ENGINE
+// =============================================================================
+
+export const SAMPLE_ANALYST_CV = `SARAH JENNINGS
+Senior Data Analyst | Commercial Analytics & Business Intelligence
+Email: sarah.jennings.analytics@example.com | LinkedIn: linkedin.com/in/sarah-jennings-data
+
+PROFESSIONAL SUMMARY
+Results-driven Senior Data Analyst with 5+ years of experience bridging technical data pipelines to C-suite decision-making. Specialized in financial modeling, customer cohort retention, and workflow automation. Proven track record of eliminating 20+ hours of monthly manual reporting toil and identifying $1.4M in operational cost recovery through rigorous data hygiene and dynamic Excel/Power BI modeling.
+
+WORK EXPERIENCE
+
+Senior Commercial Data Analyst | Apex Global Retail | Jan 2022 - Present
+- Architected and automated the company's core Executive Revenue Dashboard using Power Query, dynamic arrays, and DAX measures, reducing month-end reporting lag from 5 business days to 4 hours.
+- Discovered a recurring supplier invoicing discrepancy across 14,000 legacy transaction rows by building an automated XLOOKUP & SUMIFS reconciliation model, directly recovering $1.2M in unbilled vendor credits.
+- Partnered with VP of Merchandising and Regional Directors to analyze promotion elasticity across 350 SKUs, identifying that 22% of clearance discounts cannibalized full-price product lines.
+- Championed data governance and conducted monthly training workshops for 18 junior analysts on defensive spreadsheet modeling, INDEX-MATCH architectures, and avoiding volatile formula dependencies.
+
+Data Analyst | Nova FinTech Solutions | Jun 2019 - Dec 2021
+- Managed daily credit risk reporting models tracking delinquency rates, loan origination volumes, and repayment cohorts across 250,000 active retail accounts.
+- Consolidated multi-year customer transaction data from 4 fragmented SQL databases and legacy CSV exports into a single-source-of-truth Power BI and Excel reporting suite.
+- Handled high-priority ad-hoc analytical fire-drills for Chief Risk Officer (CRO), frequently balancing same-day executive inquiries with scheduled sprint deliverables.
+- Uncovered a calculation flaw in an inherited interest amortization model that had understated loan risk by 3.2%; proactively reported the root cause to compliance and deployed a validated automated template with error-trapping guardrails.
+
+CORE TECHNICAL & ANALYTICAL COMPETENCIES
+- Advanced Excel: Power Query (M Code), Power Pivot, DAX, Dynamic Array Formulas (FILTER, SORT, UNIQUE, LET, LAMBDA), XLOOKUP, Multi-Criterion Aggregations (SUMIFS, SUMPRODUCT), Scenario Modeling.
+- Business Intelligence & Data: Power BI, SQL (PostgreSQL, BigQuery), Python (pandas, numpy), Tableau.
+- Core Competencies: Executive Stakeholder Storytelling, Cross-Functional Alignment, Root-Cause Auditing, Prioritization Frameworks, Process Automation.`;
+
+/**
+ * Switch top-level platform module
+ * @param {"excel" | "competency"} moduleName
+ */
+export function switchModule(moduleName) {
+  state.currentModule = moduleName || "excel";
+  if (typeof document === "undefined") return;
+  const excelBtn = document.getElementById("btn-module-excel");
+  const compBtn = document.getElementById("btn-module-competency");
+  const navLinksExcel = document.getElementById("nav-links-excel");
+
+  if (state.currentModule === "competency") {
+    excelBtn?.classList.remove("active");
+    excelBtn?.setAttribute("aria-selected", "false");
+    compBtn?.classList.add("active");
+    compBtn?.setAttribute("aria-selected", "true");
+
+    if (navLinksExcel) navLinksExcel.style.display = "none";
+    switchScreen("screen-competency");
+  } else {
+    compBtn?.classList.remove("active");
+    compBtn?.setAttribute("aria-selected", "false");
+    excelBtn?.classList.add("active");
+    excelBtn?.setAttribute("aria-selected", "true");
+
+    if (navLinksExcel) navLinksExcel.style.display = "flex";
+    const targetScreen = (state.activeScreen && state.activeScreen !== "screen-competency" && state.activeScreen !== "screen-landing")
+      ? state.activeScreen
+      : (state.currentTest ? "screen-test" : "screen-generator");
+    switchScreen(targetScreen);
+  }
+}
+
+/**
+ * Initialize Competency UI State
+ */
+export function initCompetencyUI() {
+  if (typeof document === "undefined") return;
+  // Sync seniority
+  document.querySelectorAll(".seniority-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.seniority === state.competency.seniority);
+  });
+
+  // Sync industry
+  const indSelect = document.getElementById("select-competency-industry");
+  if (indSelect) indSelect.value = state.competency.industry;
+
+  // Sync depth
+  const depthSelect = document.getElementById("select-competency-depth");
+  if (depthSelect) depthSelect.value = String(state.competency.depth);
+}
+
+/**
+ * Initialize Competency Event Listeners
+ */
+export function initCompetencyEventListeners() {
+  // Module Switcher Clicks
+  document.getElementById("btn-module-excel")?.addEventListener("click", () => switchModule("excel"));
+  document.getElementById("btn-module-competency")?.addEventListener("click", () => switchModule("competency"));
+
+  // CV Intake Tab Switcher (Upload vs Paste)
+  const tabUpload = document.getElementById("btn-tab-upload-cv");
+  const tabPaste = document.getElementById("btn-tab-paste-cv");
+  const dropzoneArea = document.getElementById("cv-dropzone-area");
+  const pasteArea = document.getElementById("cv-paste-area");
+
+  tabUpload?.addEventListener("click", () => {
+    tabUpload.classList.add("active");
+    tabPaste?.classList.remove("active");
+    if (dropzoneArea) dropzoneArea.style.display = "block";
+    if (pasteArea) pasteArea.style.display = "none";
+  });
+
+  tabPaste?.addEventListener("click", () => {
+    tabPaste.classList.add("active");
+    tabUpload?.classList.remove("active");
+    if (dropzoneArea) dropzoneArea.style.display = "none";
+    if (pasteArea) pasteArea.style.display = "block";
+    const pasteInput = document.getElementById("input-cv-paste");
+    if (pasteInput) {
+      if (state.competency.cvText && !pasteInput.value) {
+        pasteInput.value = state.competency.cvText;
+        updateCvTextCounts(state.competency.cvText);
+      }
+      pasteInput.focus();
+    }
+  });
+
+  // File Upload Handlers
+  const fileInput = document.getElementById("input-cv-file");
+  const dropzone = document.getElementById("cv-dropzone");
+  const browseBtn = document.getElementById("btn-browse-cv");
+
+  browseBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fileInput?.click();
+  });
+
+  dropzone?.addEventListener("click", () => {
+    fileInput?.click();
+  });
+
+  fileInput?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleCvFileSelection(file);
+      fileInput.value = "";
+    }
+  });
+
+  dropzone?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.add("dragover");
+  });
+
+  dropzone?.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.remove("dragover");
+  });
+
+  dropzone?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropzone.classList.remove("dragover");
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      handleCvFileSelection(file);
+    }
+  });
+
+  // Paste Text Input Listener
+  const pasteInput = document.getElementById("input-cv-paste");
+  pasteInput?.addEventListener("input", (e) => {
+    const text = e.target.value;
+    state.competency.cvText = text;
+    updateCvTextCounts(text);
+  });
+
+  // Remove CV Button
+  document.getElementById("btn-remove-cv")?.addEventListener("click", () => {
+    clearCv();
+  });
+
+  // Clear Button
+  document.getElementById("btn-clear-cv")?.addEventListener("click", () => {
+    clearCv();
+  });
+
+  // Load Sample CV Button
+  document.getElementById("btn-load-sample-cv")?.addEventListener("click", () => {
+    loadSampleCv();
+  });
+
+  // Seniority Buttons
+  document.querySelectorAll(".seniority-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".seniority-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.competency.seniority = btn.dataset.seniority || "mid";
+    });
+  });
+
+  // Industry Dropdown
+  document.getElementById("select-competency-industry")?.addEventListener("change", (e) => {
+    state.competency.industry = e.target.value;
+  });
+
+  // Depth Dropdown
+  document.getElementById("select-competency-depth")?.addEventListener("change", (e) => {
+    state.competency.depth = parseInt(e.target.value, 10) || 6;
+  });
+
+  // Generate Questions Button
+  document.getElementById("btn-generate-competency")?.addEventListener("click", () => {
+    handleGenerateCompetency();
+  });
+
+  // Print Competency Prep Sheet
+  document.getElementById("btn-print-competency-sheet")?.addEventListener("click", () => {
+    if (state.competency.data) {
+      Exporter.printCompetencyPrepSheet(state.competency.data);
+    } else {
+      alert("Please generate competency questions first to print the prep sheet.");
+    }
+  });
+
+  // Reset / Test Another CV
+  document.getElementById("btn-reset-competency")?.addEventListener("click", () => {
+    document.getElementById("cv-intake-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // Pillar Filters
+  document.querySelectorAll(".pillar-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".pillar-filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.competency.activePillarFilter = btn.dataset.pillar || "all";
+      renderCompetencyQuestionsGrid();
+    });
+  });
+
+  // Search filter
+  document.getElementById("input-search-competency")?.addEventListener("input", (e) => {
+    state.competency.searchFilter = (e.target.value || "").trim().toLowerCase();
+    renderCompetencyQuestionsGrid();
+  });
+
+  // Practice Modal Controls
+  document.getElementById("btn-close-competency-practice")?.addEventListener("click", () => {
+    closePracticeModal();
+  });
+
+  // Esc key closes practice modal
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const modal = document.getElementById("modal-competency-practice");
+      if (modal && modal.classList.contains("active")) {
+        closePracticeModal();
+      }
+    }
+  });
+
+  // Practice Mode Toggle: Freeform vs Guided STAR
+  const btnFull = document.getElementById("btn-practice-mode-full");
+  const btnGuided = document.getElementById("btn-practice-mode-guided");
+  const fullContainer = document.getElementById("practice-full-container");
+  const guidedContainer = document.getElementById("practice-guided-container");
+
+  btnFull?.addEventListener("click", () => {
+    btnFull.classList.add("active");
+    btnGuided?.classList.remove("active");
+    if (fullContainer) fullContainer.style.display = "block";
+    if (guidedContainer) guidedContainer.style.display = "none";
+    updatePracticeWordCount();
+  });
+
+  btnGuided?.addEventListener("click", () => {
+    btnGuided.classList.add("active");
+    btnFull?.classList.remove("active");
+    if (fullContainer) fullContainer.style.display = "none";
+    if (guidedContainer) guidedContainer.style.display = "flex";
+    updatePracticeWordCount();
+  });
+
+  // Word counter on practice inputs
+  ["input-practice-full", "input-star-s", "input-star-t", "input-star-a", "input-star-r"].forEach(id => {
+    document.getElementById(id)?.addEventListener("input", updatePracticeWordCount);
+  });
+
+  // Toggle Blueprint Drawer
+  document.getElementById("btn-practice-view-blueprint")?.addEventListener("click", () => {
+    const drawer = document.getElementById("practice-blueprint-drawer");
+    if (drawer) {
+      drawer.style.display = drawer.style.display === "none" ? "block" : "none";
+    }
+  });
+
+  // Clear Practice Answer
+  document.getElementById("btn-practice-clear-answer")?.addEventListener("click", () => {
+    const full = document.getElementById("input-practice-full");
+    if (full) full.value = "";
+    ["input-star-s", "input-star-t", "input-star-a", "input-star-r"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    updatePracticeWordCount();
+    const evalCard = document.getElementById("practice-eval-card");
+    if (evalCard) evalCard.style.display = "none";
+  });
+
+  // Submit Answer Evaluation
+  document.getElementById("btn-submit-competency-eval")?.addEventListener("click", () => {
+    handleEvaluateCompetencyAnswer();
+  });
+}
+
+/**
+ * Handle CV file upload and text extraction
+ */
+export async function handleCvFileSelection(file) {
+  if (!file) return;
+
+  const fileName = file.name;
+  const extension = fileName.split(".").pop().toLowerCase();
+
+  try {
+    let extractedText = "";
+
+    if (extension === "pdf") {
+      extractedText = await extractTextFromPdf(file);
+    } else {
+      extractedText = await file.text();
+    }
+
+    if (!extractedText || extractedText.trim().length < 40) {
+      alert("Notice: Could not extract sufficient text from this file. If this is a scanned/image-based PDF, please copy and paste the text into the 'Paste Text' tab for 100% question fidelity.");
+      return;
+    }
+
+    state.competency.cvText = extractedText.trim();
+    state.competency.fileName = fileName;
+
+    // Update Banner
+    const banner = document.getElementById("cv-status-banner");
+    const nameEl = document.getElementById("cv-status-filename");
+    const metaEl = document.getElementById("cv-status-meta");
+    const pasteInput = document.getElementById("input-cv-paste");
+
+    if (nameEl) nameEl.textContent = fileName;
+    const words = state.competency.cvText.split(/\s+/).filter(Boolean).length;
+    if (metaEl) metaEl.textContent = `${state.competency.cvText.length.toLocaleString()} chars • ~${words.toLocaleString()} words`;
+    if (banner) banner.style.display = "flex";
+    if (pasteInput) pasteInput.value = state.competency.cvText;
+    updateCvTextCounts(state.competency.cvText);
+
+    // Provide friendly feedback in status text
+    const statusBox = document.getElementById("competency-status-feedback");
+    const statusText = document.getElementById("competency-status-text");
+    const spinner = document.getElementById("competency-spinner");
+    if (statusBox && statusText) {
+      if (spinner) spinner.style.display = "none";
+      statusBox.style.display = "flex";
+      statusText.textContent = `✓ Successfully loaded "${fileName}" (${words} words). Click "Interrogate CV & Generate Questions" to proceed.`;
+    }
+  } catch (err) {
+    console.error("CV file read error:", err);
+    alert(`Failed to read file: ${err.message}. Please paste your resume text directly into the 'Paste Text' tab.`);
+  }
+}
+
+/**
+ * Client-Side Text Stream Extractor for PDF Files
+ */
+async function extractTextFromPdf(file) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let text = "";
+
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  const rawString = decoder.decode(bytes);
+
+  const textBlockRegex = /BT[\s\S]*?ET/g;
+  const matches = rawString.match(textBlockRegex);
+
+  if (matches && matches.length > 0) {
+    const stringLiteralRegex = /\((.*?)\)|\[(.*?)\]/g;
+    for (const block of matches) {
+      let m;
+      while ((m = stringLiteralRegex.exec(block)) !== null) {
+        const chunk = m[1] || m[2] || "";
+        const cleanChunk = chunk
+          .replace(/\\n/g, "\n")
+          .replace(/\\r/g, "")
+          .replace(/\\t/g, "\t")
+          .replace(/\\\(/g, "(")
+          .replace(/\\\)/g, ")")
+          .replace(/\\\\/g, "\\");
+        text += cleanChunk + " ";
+      }
+      text += "\n";
+    }
+  }
+
+  if (text.trim().length < 60) {
+    const asciiRuns = rawString.match(/[\x20-\x7E\r\n]{5,}/g);
+    if (asciiRuns && asciiRuns.length > 0) {
+      text = asciiRuns.filter(s => !/^(obj|endobj|stream|endstream|xref|trailer|startxref)/i.test(s.trim())).join("\n");
+    }
+  }
+
+  return text.trim();
+}
+
+/**
+ * Load built-in Senior Analyst CV
+ */
+export function loadSampleCv() {
+  state.competency.cvText = SAMPLE_ANALYST_CV.trim();
+  state.competency.fileName = "Sarah_Jennings_Senior_Data_Analyst_CV.txt";
+
+  const banner = document.getElementById("cv-status-banner");
+  const nameEl = document.getElementById("cv-status-filename");
+  const metaEl = document.getElementById("cv-status-meta");
+  const pasteInput = document.getElementById("input-cv-paste");
+
+  if (nameEl) nameEl.textContent = state.competency.fileName;
+  const words = state.competency.cvText.split(/\s+/).filter(Boolean).length;
+  if (metaEl) metaEl.textContent = `${state.competency.cvText.length.toLocaleString()} chars • ~${words.toLocaleString()} words (Sample Senior CV)`;
+  if (banner) banner.style.display = "flex";
+  if (pasteInput) pasteInput.value = state.competency.cvText;
+  updateCvTextCounts(state.competency.cvText);
+
+  document.querySelectorAll(".seniority-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.seniority === "senior");
+  });
+  state.competency.seniority = "senior";
+
+  const statusBox = document.getElementById("competency-status-feedback");
+  const statusText = document.getElementById("competency-status-text");
+  const spinner = document.getElementById("competency-spinner");
+  if (statusBox && statusText) {
+    if (spinner) spinner.style.display = "none";
+    statusBox.style.display = "flex";
+    statusText.textContent = `✓ Loaded sample Senior Data Analyst CV (${words} words). Click "Interrogate CV & Generate Questions" to generate recruiter questions!`;
+  }
+}
+
+/**
+ * Clear loaded CV
+ */
+export function clearCv() {
+  state.competency.cvText = "";
+  state.competency.fileName = "";
+
+  const banner = document.getElementById("cv-status-banner");
+  if (banner) banner.style.display = "none";
+
+  const pasteInput = document.getElementById("input-cv-paste");
+  if (pasteInput) pasteInput.value = "";
+  updateCvTextCounts("");
+
+  const statusBox = document.getElementById("competency-status-feedback");
+  if (statusBox) statusBox.style.display = "none";
+}
+
+/**
+ * Update word and character counts
+ */
+function updateCvTextCounts(text) {
+  const chars = text.length;
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const charEl = document.getElementById("cv-char-count");
+  const wordEl = document.getElementById("cv-word-count");
+  if (charEl) charEl.textContent = chars.toLocaleString();
+  if (wordEl) wordEl.textContent = words.toLocaleString();
+}
+
+/**
+ * Handle Competency Question Generation via Gemini API or Offline Bank
+ */
+export async function handleGenerateCompetency() {
+  const cv = (state.competency.cvText || "").trim();
+  if (!cv || cv.length < 50) {
+    alert("Please upload your CV file or paste your resume text (at least 50 characters) to generate tailored competency questions.");
+    const pasteTab = document.getElementById("btn-tab-paste-cv");
+    pasteTab?.click();
+    document.getElementById("input-cv-paste")?.focus();
+    return;
+  }
+
+  const statusBox = document.getElementById("competency-status-feedback");
+  const statusText = document.getElementById("competency-status-text");
+  const spinner = document.getElementById("competency-spinner");
+  const genBtn = document.getElementById("btn-generate-competency");
+
+  if (genBtn) genBtn.disabled = true;
+  if (statusBox) statusBox.style.display = "flex";
+  if (spinner) spinner.style.display = "block";
+  if (statusText) statusText.textContent = "Senior Recruiter AI is interrogating your CV across the 6 competency pillars...";
+
+  const apiKey = Storage.getGeminiKey();
+  const model = Storage.getGeminiModel();
+
+  try {
+    const result = await Gemini.generateCompetencyQuestions({
+      cvText: cv,
+      seniority: state.competency.seniority,
+      industry: state.competency.industry,
+      count: state.competency.depth,
+      apiKey,
+      model
+    });
+
+    state.competency.data = result;
+    renderCompetencyDashboard(result);
+
+    if (statusText) statusText.textContent = `✓ Successfully generated ${result.questions?.length || 6} competency interview questions!`;
+    if (spinner) spinner.style.display = "none";
+
+    const dashboard = document.getElementById("competency-dashboard");
+    if (dashboard) {
+      dashboard.style.display = "block";
+      dashboard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  } catch (err) {
+    console.error("Competency generation error:", err);
+    alert(`Failed to generate competency questions: ${err.message}. Using offline competency question bank.`);
+    const fallback = Gemini.getOfflineCompetencyData(state.competency.seniority, state.competency.industry);
+    state.competency.data = fallback;
+    renderCompetencyDashboard(fallback);
+  } finally {
+    if (genBtn) genBtn.disabled = false;
+  }
+}
+
+/**
+ * Render the Competency Dashboard & Strategy Banner
+ */
+export function renderCompetencyDashboard(data) {
+  const dashboard = document.getElementById("competency-dashboard");
+  if (!dashboard || !data) return;
+
+  dashboard.style.display = "block";
+
+  const summaryEl = document.getElementById("competency-candidate-summary");
+  if (summaryEl) {
+    summaryEl.textContent = data.candidateSummary || "Candidate Competency Profile";
+  }
+
+  const badgeEl = document.getElementById("competency-strategy-badge");
+  if (badgeEl) {
+    badgeEl.textContent = `Recruiter Blueprint • ${(data.targetSeniority || state.competency.seniority).toUpperCase()} • ${(data.targetIndustry || state.competency.industry).toUpperCase()}`;
+  }
+
+  renderCompetencyQuestionsGrid();
+}
+
+/**
+ * Render Questions Grid based on Active Pillar and Search Query
+ */
+export function renderCompetencyQuestionsGrid() {
+  const grid = document.getElementById("competency-questions-grid");
+  if (!grid || !state.competency.data) return;
+
+  const questions = state.competency.data.questions || [];
+  const activePillar = state.competency.activePillarFilter || "all";
+  const search = state.competency.searchFilter || "";
+
+  const counts = { all: questions.length, impact: 0, storytelling: 0, ambiguity: 0, prioritization: 0, automation: 0, learning: 0 };
+  questions.forEach(q => {
+    if (counts[q.pillar] !== undefined) counts[q.pillar]++;
+  });
+
+  Object.keys(counts).forEach(key => {
+    const el = document.getElementById(`filter-count-${key}`);
+    if (el) el.textContent = counts[key];
+  });
+
+  const filtered = questions.filter(q => {
+    const matchPillar = activePillar === "all" || q.pillar === activePillar;
+    const matchSearch = !search ||
+      (q.question && q.question.toLowerCase().includes(search)) ||
+      (q.cvAnchor && q.cvAnchor.toLowerCase().includes(search)) ||
+      (q.recruiterIntent && q.recruiterIntent.toLowerCase().includes(search));
+    return matchPillar && matchSearch;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; padding: 2.5rem; text-align: center; background: rgba(255,255,255,0.02); border: 1px dashed var(--glass-border); border-radius: var(--radius-lg);">
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">No questions found matching your filter criteria.</p>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-filters" style="margin-top: 0.75rem;">Clear Filters</button>
+      </div>
+    `;
+    document.getElementById("btn-reset-filters")?.addEventListener("click", () => {
+      state.competency.activePillarFilter = "all";
+      state.competency.searchFilter = "";
+      const searchInput = document.getElementById("input-search-competency");
+      if (searchInput) searchInput.value = "";
+      document.querySelectorAll(".pillar-filter-btn").forEach(b => b.classList.toggle("active", b.dataset.pillar === "all"));
+      renderCompetencyQuestionsGrid();
+    });
+    return;
+  }
+
+  const pillarMeta = {
+    impact: { icon: "💼", label: "Business Impact", class: "impact" },
+    storytelling: { icon: "🗣️", label: "Storytelling", class: "storytelling" },
+    ambiguity: { icon: "🔍", label: "Dirty Data", class: "ambiguity" },
+    prioritization: { icon: "⚖️", label: "Prioritization", class: "prioritization" },
+    automation: { icon: "⚡", label: "Automation", class: "automation" },
+    learning: { icon: "🛡️", label: "Learning & Failure", class: "learning" }
+  };
+
+  grid.innerHTML = filtered.map((q, idx) => {
+    const meta = pillarMeta[q.pillar] || { icon: "🎯", label: q.pillarLabel || q.pillar, class: "impact" };
+    const star = q.starBlueprint || {};
+
+    return `
+      <div class="competency-card" data-qid="${escapeHtml(q.id || `q-${idx}`)}">
+        <div>
+          <div class="competency-card-header">
+            <span class="pillar-tag ${meta.class}">
+              <span>${meta.icon}</span>
+              <span>${escapeHtml(q.pillarLabel || meta.label)}</span>
+            </span>
+            <span class="q-seniority-tag">${escapeHtml((state.competency.seniority || "Mid-Level").toUpperCase())}</span>
+          </div>
+
+          ${q.cvAnchor ? `
+            <div class="cv-anchor-callout">
+              <strong>📌 Anchored on your CV:</strong> <em>"${escapeHtml(q.cvAnchor)}"</em>
+            </div>
+          ` : ""}
+
+          <h4 class="competency-q-title">${escapeHtml(q.question)}</h4>
+
+          <!-- Collapsible Recruiter Intent -->
+          <div class="collapsible-drawer">
+            <button type="button" class="collapsible-drawer-toggle" data-target="intent-${idx}">
+              <span>🕵️ Recruiter's Hidden Intent</span>
+              <span class="drawer-arrow">▼</span>
+            </button>
+            <div class="collapsible-drawer-content" id="intent-${idx}" style="display: none;">
+              ${escapeHtml(q.recruiterIntent || "Assesses personal ownership, data discipline, and business acumen.")}
+            </div>
+          </div>
+
+          <!-- Collapsible STAR Blueprint -->
+          <div class="collapsible-drawer">
+            <button type="button" class="collapsible-drawer-toggle" data-target="star-${idx}">
+              <span>📋 Recommended STAR Blueprint</span>
+              <span class="drawer-arrow">▼</span>
+            </button>
+            <div class="collapsible-drawer-content" id="star-${idx}" style="display: none;">
+              <div class="star-blueprint-mini-grid">
+                <div class="star-mini-box">
+                  <strong style="color: #38bdf8;">[S] Situation:</strong>
+                  <span>${escapeHtml(star.situation || "Set business stakes.")}</span>
+                </div>
+                <div class="star-mini-box">
+                  <strong style="color: #fbbf24;">[T] Task:</strong>
+                  <span>${escapeHtml(star.task || "Define core responsibility.")}</span>
+                </div>
+                <div class="star-mini-box">
+                  <strong style="color: #4ade80;">[A] Action:</strong>
+                  <span>${escapeHtml(star.action || "Detail your steps and ownership.")}</span>
+                </div>
+                <div class="star-mini-box">
+                  <strong style="color: #c084fc;">[R] Result:</strong>
+                  <span>${escapeHtml(star.result || "Quantify ROI and metrics.")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="competency-card-footer">
+          <button type="button" class="btn btn-primary btn-sm btn-practice-q" data-qid="${escapeHtml(q.id || `q-${idx}`)}">
+            <span>🎙️</span> Practice Answer & AI Grade
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  grid.querySelectorAll(".collapsible-drawer-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.target;
+      const content = document.getElementById(targetId);
+      const arrow = btn.querySelector(".drawer-arrow");
+      if (content) {
+        const isHidden = content.style.display === "none";
+        content.style.display = isHidden ? "block" : "none";
+        if (arrow) arrow.textContent = isHidden ? "▲" : "▼";
+      }
+    });
+  });
+
+  grid.querySelectorAll(".btn-practice-q").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const qid = btn.dataset.qid;
+      const questionObj = questions.find(q => (q.id || "") === qid) || questions[0];
+      if (questionObj) {
+        openPracticeModal(questionObj);
+      }
+    });
+  });
+}
+
+/**
+ * Open Interactive Practice Modal
+ */
+export function openPracticeModal(questionObj) {
+  if (!questionObj) return;
+
+  state.competency.activeQuestion = questionObj;
+  const modal = document.getElementById("modal-competency-practice");
+  if (!modal) return;
+
+  const pillarBadge = document.getElementById("practice-modal-pillar-badge");
+  const pillarIcon = document.getElementById("practice-modal-pillar-icon");
+  const qText = document.getElementById("practice-modal-question-text");
+  const anchorText = document.getElementById("practice-modal-anchor-text");
+  const intentText = document.getElementById("practice-modal-intent-text");
+  const drawer = document.getElementById("practice-blueprint-drawer");
+  const blueprintContent = document.getElementById("practice-blueprint-content");
+  const evalCard = document.getElementById("practice-eval-card");
+
+  const pillarMeta = {
+    impact: { icon: "💼", label: "Business Impact" },
+    storytelling: { icon: "🗣️", label: "Storytelling" },
+    ambiguity: { icon: "🔍", label: "Dirty Data" },
+    prioritization: { icon: "⚖️", label: "Prioritization" },
+    automation: { icon: "⚡", label: "Automation" },
+    learning: { icon: "🛡️", label: "Learning & Failure" }
+  };
+  const meta = pillarMeta[questionObj.pillar] || { icon: "🎯", label: questionObj.pillarLabel || "Competency" };
+
+  if (pillarBadge) pillarBadge.textContent = questionObj.pillarLabel || meta.label;
+  if (pillarIcon) pillarIcon.textContent = meta.icon;
+  if (qText) qText.textContent = questionObj.question;
+  if (anchorText) anchorText.textContent = questionObj.cvAnchor ? `"${questionObj.cvAnchor}"` : "General Data Analytics Experience";
+  if (intentText) intentText.textContent = questionObj.recruiterIntent || "Assessing personal analytical ownership and STAR structure.";
+
+  const star = questionObj.starBlueprint || {};
+  if (blueprintContent) {
+    blueprintContent.innerHTML = `
+      <div class="star-blueprint-step">
+        <strong style="color: #38bdf8;">[S] Situation:</strong>
+        <p style="margin: 0; color: var(--text-secondary);">${escapeHtml(star.situation || "Set business stakes.")}</p>
+      </div>
+      <div class="star-blueprint-step">
+        <strong style="color: #fbbf24;">[T] Task:</strong>
+        <p style="margin: 0; color: var(--text-secondary);">${escapeHtml(star.task || "Define core mandate.")}</p>
+      </div>
+      <div class="star-blueprint-step">
+        <strong style="color: #4ade80;">[A] Action:</strong>
+        <p style="margin: 0; color: var(--text-secondary);">${escapeHtml(star.action || "Detail your steps and ownership.")}</p>
+      </div>
+      <div class="star-blueprint-step">
+        <strong style="color: #c084fc;">[R] Result:</strong>
+        <p style="margin: 0; color: var(--text-secondary);">${escapeHtml(star.result || "Quantify ROI and metrics.")}</p>
+      </div>
+    `;
+  }
+  if (drawer) drawer.style.display = "none";
+  if (evalCard) evalCard.style.display = "none";
+
+  const fullInput = document.getElementById("input-practice-full");
+  if (fullInput) fullInput.value = "";
+  ["input-star-s", "input-star-t", "input-star-a", "input-star-r"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  updatePracticeWordCount();
+
+  modal.classList.add("active");
+}
+
+/**
+ * Close Practice Modal
+ */
+export function closePracticeModal() {
+  const modal = document.getElementById("modal-competency-practice");
+  if (modal) modal.classList.remove("active");
+}
+
+/**
+ * Update Word Count for Practice Input
+ */
+function updatePracticeWordCount() {
+  const isGuided = document.getElementById("btn-practice-mode-guided")?.classList.contains("active");
+  let text = "";
+
+  if (isGuided) {
+    const s = document.getElementById("input-star-s")?.value || "";
+    const t = document.getElementById("input-star-t")?.value || "";
+    const a = document.getElementById("input-star-a")?.value || "";
+    const r = document.getElementById("input-star-r")?.value || "";
+    text = `${s} ${t} ${a} ${r}`.trim();
+  } else {
+    text = (document.getElementById("input-practice-full")?.value || "").trim();
+  }
+
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const countEl = document.getElementById("practice-word-count");
+  if (countEl) {
+    countEl.textContent = words;
+    if (words < 80) {
+      countEl.style.color = "var(--accent-amber)";
+    } else if (words >= 150 && words <= 350) {
+      countEl.style.color = "var(--excel-green)";
+    } else {
+      countEl.style.color = "var(--text-muted)";
+    }
+  }
+}
+
+/**
+ * Handle AI Recruiter Grading of STAR Answer
+ */
+export async function handleEvaluateCompetencyAnswer() {
+  const questionObj = state.competency.activeQuestion;
+  if (!questionObj) return;
+
+  const isGuided = document.getElementById("btn-practice-mode-guided")?.classList.contains("active");
+  let answerText = "";
+
+  if (isGuided) {
+    const s = (document.getElementById("input-star-s")?.value || "").trim();
+    const t = (document.getElementById("input-star-t")?.value || "").trim();
+    const a = (document.getElementById("input-star-a")?.value || "").trim();
+    const r = (document.getElementById("input-star-r")?.value || "").trim();
+    answerText = `Situation: ${s}\nTask: ${t}\nAction: ${a}\nResult: ${r}`.trim();
+  } else {
+    answerText = (document.getElementById("input-practice-full")?.value || "").trim();
+  }
+
+  const words = answerText.split(/\s+/).filter(Boolean).length;
+  if (words < 15) {
+    alert("Please formulate an answer with at least 15 words before submitting to the hiring manager for evaluation.");
+    return;
+  }
+
+  const loading = document.getElementById("practice-eval-loading");
+  const submitBtn = document.getElementById("btn-submit-competency-eval");
+  const evalCard = document.getElementById("practice-eval-card");
+
+  if (loading) loading.style.display = "flex";
+  if (submitBtn) submitBtn.disabled = true;
+  if (evalCard) evalCard.style.display = "none";
+
+  const apiKey = Storage.getGeminiKey();
+  const model = Storage.getGeminiModel();
+
+  try {
+    const evaluation = await Gemini.evaluateCompetencyAnswer({
+      questionObj,
+      cvText: state.competency.cvText,
+      candidateAnswer: answerText,
+      seniority: state.competency.seniority,
+      apiKey,
+      model
+    });
+
+    renderEvaluationReport(evaluation);
+    if (evalCard) {
+      evalCard.style.display = "block";
+      evalCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  } catch (err) {
+    console.error("Evaluation error:", err);
+    alert(`Evaluation failed: ${err.message}. Showing heuristic feedback.`);
+  } finally {
+    if (loading) loading.style.display = "none";
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+/**
+ * Render the Recruiter Evaluation Report Card
+ */
+function renderEvaluationReport(res) {
+  const evalCard = document.getElementById("practice-eval-card");
+  if (!evalCard || !res) return;
+
+  const score = typeof res.score === "number" ? res.score.toFixed(1) : "8.0";
+  const verdict = res.verdict || "HIRE";
+  const verdictClass = verdict.toLowerCase().replace(/\s+/g, "-");
+  const star = res.starBreakdown || { situation: true, task: true, action: true, result: true };
+  const greenFlags = Array.isArray(res.greenFlags) ? res.greenFlags : [];
+  const redFlags = Array.isArray(res.redFlags) ? res.redFlags : [];
+
+  evalCard.innerHTML = `
+    <div class="eval-verdict-row">
+      <div>
+        <span class="eval-verdict-badge ${verdictClass}">${escapeHtml(verdict)}</span>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Recruiter STAR Interview Rating</div>
+      </div>
+      <div style="text-align: right;">
+        <span class="eval-score-num">${score}</span>
+        <span style="font-size: 1rem; color: var(--text-muted);">/10</span>
+      </div>
+    </div>
+
+    <p style="font-size: 0.88rem; color: var(--text-primary); line-height: 1.5; margin-bottom: 1rem;">
+      ${escapeHtml(res.verdictSummary || "Candidate response evaluated.")}
+    </p>
+
+    <!-- STAR Checklist -->
+    <div class="star-checklist-row">
+      <div class="star-check-item ${star.situation ? "passed" : "failed"}">
+        <span>[S] Situation: ${star.situation ? "✓ Clear" : "✗ Missing"}</span>
+      </div>
+      <div class="star-check-item ${star.task ? "passed" : "failed"}">
+        <span>[T] Task: ${star.task ? "✓ Clear" : "✗ Missing"}</span>
+      </div>
+      <div class="star-check-item ${star.action ? "passed" : "failed"}">
+        <span>[A] Action: ${star.action ? "✓ Strong" : "✗ Vague"}</span>
+      </div>
+      <div class="star-check-item ${star.result ? "passed" : "failed"}">
+        <span>[R] Result: ${star.result ? "✓ Quantified" : "✗ Missing"}</span>
+      </div>
+    </div>
+
+    <!-- Green Flags & Red Flags -->
+    <div class="eval-flags-grid">
+      <div class="green-flags-box">
+        <strong style="color: #34d399; font-size: 0.82rem;">✓ Recruiter Green Flags:</strong>
+        <ul>
+          ${greenFlags.map(f => `<li>${escapeHtml(f)}</li>`).join("")}
+        </ul>
+      </div>
+      <div class="red-flags-box">
+        <strong style="color: #fb7185; font-size: 0.82rem;">⚠️ What Gave the Recruiter Pause:</strong>
+        <ul>
+          ${redFlags.map(f => `<li>${escapeHtml(f)}</li>`).join("")}
+        </ul>
+      </div>
+    </div>
+
+    <!-- Gold Standard Model Answer -->
+    ${res.modelAnswer ? `
+      <div class="model-answer-box">
+        <strong style="color: var(--accent-cyan); display: block; margin-bottom: 0.35rem;">✨ 10/10 Gold Standard Answer:</strong>
+        <p style="margin: 0;">${escapeHtml(res.modelAnswer)}</p>
+      </div>
+    ` : ""}
+
+    <!-- Coaching Tip -->
+    ${res.coachingTip ? `
+      <div class="coaching-tip-box">
+        <strong>💡 Tactical Interview Edge:</strong> ${escapeHtml(res.coachingTip)}
+      </div>
+    ` : ""}
+  `;
+}
+
 

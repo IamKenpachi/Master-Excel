@@ -479,3 +479,134 @@ export const VERBAL_DEFENSE_TOPICS = [
   { topic: "Explaining complex formulas to non-technical stakeholders", category: "visualization" }
 ];
 
+/**
+ * Core Competency Pillars Assessed by Recruiters in Data Analyst Interviews
+ */
+export const COMPETENCY_PILLARS = [
+  { id: "impact", label: "Business Impact & Commercial Acumen", icon: "💰", shortName: "Business Impact" },
+  { id: "storytelling", label: "Stakeholder Management & Storytelling", icon: "📊", shortName: "Storytelling" },
+  { id: "ambiguity", label: "Dirty Data & Ambiguity Resolution", icon: "🧩", shortName: "Ambiguity" },
+  { id: "prioritization", label: "Prioritization & Scope Management", icon: "⚖️", shortName: "Prioritization" },
+  { id: "automation", label: "Process Optimization & Automation", icon: "⚡", shortName: "Automation" },
+  { id: "learning", label: "Accountability & Continuous Learning", icon: "🛡️", shortName: "Failure & Learning" }
+];
+
+/**
+ * Build Prompt to Generate CV-Anchored Competency Questions
+ */
+export function buildCompetencyQuestionPrompt({ cvText, seniority = "mid", industry = "general", count = 8 }) {
+  const seniorityLevels = {
+    junior: "Junior / Entry-Level Data Analyst (0-2 years). Focus on data hygiene discipline, learning curves, and knowing when to ask for help.",
+    mid: "Mid-Level Data Analyst (3-5 years). Focus on independent end-to-end execution, handling messy ambiguity, pushing back on vague requests, and business ROI.",
+    senior: "Senior Data Analyst (5-8 years). Focus on strategic influence, architecture choices, executive alignment, mentorship, and enterprise impact.",
+    lead: "Lead Analyst / Analytics Manager (8+ years). Focus on strategic vision, cross-functional prioritization, metric governance, and team leadership."
+  };
+
+  const seniorityGuide = seniorityLevels[seniority] || seniorityLevels.mid;
+
+  return `<role>
+You are a Principal Talent Partner & Senior Director of Analytics conducting a high-stakes competency-based interview for a Data Analyst role.
+Target Seniority Level: ${seniorityGuide}
+Target Industry Domain: ${industry}
+</role>
+
+<candidate_cv>
+${cvText.slice(0, 8000)}
+</candidate_cv>
+
+<instructions>
+1. Carefully analyze the candidate's CV: Extract their actual projects, companies, tools, metrics, and domain claims.
+2. Formulate exactly ${count} incisive, competency-based interview questions categorized across the 6 core competency pillars:
+   - Business Impact & Commercial Acumen (pillar: "impact")
+   - Stakeholder Management & Storytelling (pillar: "storytelling")
+   - Dirty Data & Ambiguity Resolution (pillar: "ambiguity")
+   - Prioritization & Scope Management (pillar: "prioritization")
+   - Process Optimization & Automation (pillar: "automation")
+   - Accountability & Continuous Learning (pillar: "learning")
+3. CRITICAL RULE: Every question MUST be explicitly anchored to a specific bullet point, metric, or claim from the candidate's CV! (e.g. "In your experience at [Company], you mentioned [Claim]...").
+4. For each question, provide:
+   - "cvAnchor": The exact sentence, metric, or project from their CV that prompted this interrogation.
+   - "recruiterIntent": What the hiring manager is secretly probing for (e.g. "Checking if they truly owned the analysis or merely exported a pre-built report").
+   - "starBlueprint": Guidance broken down into S, T, A, R for how a top-tier candidate should structure their response.
+</instructions>
+
+<output_schema>
+Respond ONLY with a valid JSON object matching this structure:
+{
+  "candidateSummary": "2-sentence executive summary of the candidate's analytical profile, key strengths, and seniority calibration.",
+  "targetSeniority": "${seniority}",
+  "targetIndustry": "${industry}",
+  "questions": [
+    {
+      "id": "q1",
+      "pillar": "impact",
+      "pillarLabel": "Business Impact & Commercial Acumen",
+      "cvAnchor": "Quote or reference from candidate's CV",
+      "question": "Clear, direct behavioral interview question",
+      "recruiterIntent": "What the recruiter is evaluating behind the scenes",
+      "starBlueprint": {
+        "situation": "What business context and stakeholder stakes to establish",
+        "task": "Your specific analytical responsibility and core KPI",
+        "action": "The exact analytical methodology, data validation, and communication strategy you used",
+        "result": "Quantifiable commercial impact, dollars saved, or strategic decision made"
+      }
+    }
+  ]
+}
+</output_schema>`;
+}
+
+/**
+ * Build Prompt to Evaluate Candidate's STAR Competency Response
+ */
+export function buildCompetencyEvaluationPrompt({ questionObj, cvText = "", candidateAnswer, seniority = "mid" }) {
+  return `<role>
+You are an executive Hiring Manager and Senior Director of Analytics grading a candidate's competency interview response.
+Evaluation Framework: The STAR Method (Situation, Task, Action, Result).
+Target Seniority: ${seniority}
+</role>
+
+<interview_question_context>
+Question: "${questionObj.question}"
+Competency Pillar: "${questionObj.pillarLabel || questionObj.pillar}"
+CV Anchor: "${questionObj.cvAnchor || ''}"
+Recruiter Intent: "${questionObj.recruiterIntent || ''}"
+</interview_question_context>
+
+<candidate_response>
+"${candidateAnswer}"
+</candidate_response>
+
+<grading_criteria>
+1. Depth of Personal Ownership: Did they explain what *they* did ('I did') vs hiding behind team ambiguity ('we did')?
+2. Technical & Business Justification: Did they explain *why* they chose their approach, and how it connected to business metrics?
+3. STAR Structure: Assess whether Situation, Task, Action, and Result are each clearly articulated.
+4. Seniority Calibration: Does their tone match a professional ${seniority} analyst?
+</grading_criteria>
+
+<output_schema>
+Respond ONLY with a valid JSON object matching this structure:
+{
+  "score": 8.5,
+  "verdict": "STRONG HIRE",
+  "verdictSummary": "1-2 sentence executive assessment of the candidate's response.",
+  "starBreakdown": {
+    "situation": true,
+    "task": true,
+    "action": true,
+    "result": false,
+    "feedback": "Crisp situation and thorough action, but missing quantifiable result."
+  },
+  "greenFlags": [
+    "Specifically identified the root cause in the raw schema before communicating.",
+    "Used active 'I' statements demonstrating genuine ownership."
+  ],
+  "redFlags": [
+    "Did not mention the final business outcome or dollar metric impacted."
+  ],
+  "modelAnswer": "A complete 10/10 Gold Standard model answer demonstrating perfect STAR execution, tailored to the question context.",
+  "coachingTip": "1 high-impact tactical tip to polish this answer for live interview rooms."
+}
+</output_schema>`;
+}
+

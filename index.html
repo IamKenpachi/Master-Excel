@@ -23,8 +23,26 @@
         </div>
       </div>
 
-      <nav class="nav-links">
-        <button class="nav-btn active" id="tab-generator" data-screen="screen-generator">
+      <!-- Top-Level Module Switcher (Dual Platform) -->
+      <div class="module-switcher" id="module-switcher" role="tablist" aria-label="Platform Module Selection">
+        <button type="button" class="module-btn" id="btn-module-excel" data-module="excel" role="tab" aria-selected="false" title="Excel Technical Mock Test & Case Studies">
+          <span class="module-icon">📊</span>
+          <span class="module-text">
+            <strong>Excel Technical</strong>
+            <small>Case Studies & Formulas</small>
+          </span>
+        </button>
+        <button type="button" class="module-btn" id="btn-module-competency" data-module="competency" role="tab" aria-selected="false" title="CV Competency-Based Interview Preparation">
+          <span class="module-icon">🎯</span>
+          <span class="module-text">
+            <strong>CV Competency</strong>
+            <small>STAR Recruiter Prep</small>
+          </span>
+        </button>
+      </div>
+
+      <nav class="nav-links" id="nav-links-excel" style="display: none;">
+        <button class="nav-btn" id="tab-generator" data-screen="screen-generator">
           <span>⚡</span> Generator
         </button>
         <button class="nav-btn" id="tab-test" data-screen="screen-test">
@@ -51,8 +69,121 @@
     <!-- Main Screens Container -->
     <main class="main-content">
 
+      <!-- ================================================================= -->
+      <!-- SCREEN 0: WELCOME PORTAL LANDING HUB                             -->
+      <!-- ================================================================= -->
+      <section id="screen-landing" class="screen active">
+        <!-- Landing Hero Banner -->
+        <div class="landing-hero-container">
+          <div class="landing-hero-badge">
+            <span>🏆</span> 360° Data Analyst Interview Preparation Platform
+          </div>
+          <h2 class="landing-hero-title">Master the Complete Data Analyst Interview</h2>
+          <p class="landing-hero-subtitle">
+            Hiring decisions hinge on two critical rounds: the high-stakes <strong>technical spreadsheet assessment</strong> and the <strong>behavioral competency interview</strong>. Choose your prep track below to begin:
+          </p>
+        </div>
+
+        <!-- 2-Card Portal Grid -->
+        <div class="portal-cards-grid">
+          <!-- Card 1: Excel Technical Simulator -->
+          <div class="portal-card excel" id="portal-card-excel">
+            <div class="portal-card-glow excel-glow"></div>
+            <div class="portal-card-content">
+              <div class="portal-card-top">
+                <div class="portal-icon-wrapper excel-icon-bg">
+                  <span class="portal-card-icon">📊</span>
+                </div>
+                <span class="portal-module-tag excel-tag">Module 1 • Technical Screen</span>
+              </div>
+
+              <h3 class="portal-card-title">Excel Technical Simulator</h3>
+              <p class="portal-card-desc">
+                Conquer timed 60-minute spreadsheet case studies calibrated to Junior, Mid, and Senior standards with authentic business datasets, live formula debugging, and step-by-step solutions.
+              </p>
+
+              <div class="portal-features-list">
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>Real Industry Data:</strong> Live query & schema ranking from Hugging Face & Kaggle</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>Live Formula Bar & Linter:</strong> Instant linting for XLOOKUP, SUMIFS, spills & volatile traps</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>3-Tier Progressive Hints:</strong> Gentle Nudges → Syntax Blueprints → Full Answers</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>Daily Gauntlet & Drills:</strong> Glitch hunt, syntax skeleton & oral defense scenarios</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>Hiring Manager Scorecard:</strong> Readiness rubric & 1-page printable defense PDF</span>
+                </div>
+              </div>
+
+              <div class="portal-card-footer">
+                <button type="button" class="btn btn-primary btn-portal btn-portal-excel" id="btn-launch-excel">
+                  <span>🚀</span> Launch Technical Simulator →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: CV Competency Interviewer -->
+          <div class="portal-card competency" id="portal-card-competency">
+            <div class="portal-card-glow comp-glow"></div>
+            <div class="portal-card-content">
+              <div class="portal-card-top">
+                <div class="portal-icon-wrapper comp-icon-bg">
+                  <span class="portal-card-icon">🎯</span>
+                </div>
+                <span class="portal-module-tag comp-tag">Module 2 • Behavioral & STAR</span>
+              </div>
+
+              <h3 class="portal-card-title">CV Competency Interviewer</h3>
+              <p class="portal-card-desc">
+                Over 60% of technical candidates fail behavioral rounds. Interrogate your actual CV claims across 6 core recruiter pillars with AI hiring manager grading and STAR blueprints.
+              </p>
+
+              <div class="portal-features-list">
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>CV Bullet Interrogation:</strong> Client-side text extraction (PDF, DOCX, TXT, paste)</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>6 Core Competency Pillars:</strong> Impact, Storytelling, Ambiguity, Prioritization, Automation, Learning</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>Recruiter Intent Callouts:</strong> Uncover the secret hiring manager agenda behind each question</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>Interactive Practice Modal:</strong> Practice freeform or guided STAR with live word guidance</span>
+                </div>
+                <div class="portal-feature-item">
+                  <span class="feature-check">✓</span>
+                  <span><strong>AI Recruiter Evaluation:</strong> 1-10 scoring, STAR checklist, red flags & 10/10 model answers</span>
+                </div>
+              </div>
+
+              <div class="portal-card-footer">
+                <button type="button" class="btn btn-primary btn-portal btn-portal-competency" id="btn-launch-competency">
+                  <span>🎙️</span> Launch CV Competency Prep →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- SCREEN 1: GENERATOR -->
-      <section id="screen-generator" class="screen active">
+      <section id="screen-generator" class="screen">
         <!-- API Notice / Demo banner -->
         <div class="demo-banner" id="banner-api-notice">
           <div>
@@ -656,6 +787,197 @@
         </div>
       </section>
 
+      <!-- ================================================================= -->
+      <!-- MODULE 2: SCREEN COMPETENCY INTERVIEWER                          -->
+      <!-- ================================================================= -->
+      <section id="screen-competency" class="screen">
+        <!-- Hero Header -->
+        <div class="competency-hero-card">
+          <div class="competency-hero-header">
+            <div class="competency-hero-badge">
+              <span>🎯</span> Module 2 • Behavioral & Competency Engine
+            </div>
+            <h2 class="competency-hero-title">CV-Anchored Competency Interview Simulator</h2>
+            <p class="competency-hero-subtitle">
+              Over 60% of Data Analyst candidates pass technical Excel screens but fail behavioral rounds.
+              Recruiters interrogate your real resume bullets across the <strong>6 Core Competency Pillars</strong> using the <strong>STAR method</strong> (Situation, Task, Action, Result).
+            </p>
+          </div>
+
+          <!-- 6 Pillars Quick Overview Bar -->
+          <div class="competency-pillars-preview">
+            <div class="pillar-pill" title="Translating numbers into commercial revenue, margin, or cost reduction">
+              <span class="pillar-pill-icon">💼</span>
+              <span class="pillar-pill-name">Business Impact</span>
+            </div>
+            <div class="pillar-pill" title="Presenting to non-technical stakeholders and defending numbers">
+              <span class="pillar-pill-icon">🗣️</span>
+              <span class="pillar-pill-name">Storytelling</span>
+            </div>
+            <div class="pillar-pill" title="Handling messy spreadsheets, missing IDs, and vague requirements">
+              <span class="pillar-pill-icon">🔍</span>
+              <span class="pillar-pill-name">Dirty Data & Ambiguity</span>
+            </div>
+            <div class="pillar-pill" title="Managing competing stakeholder fire drills and saying 'no'">
+              <span class="pillar-pill-icon">⚖️</span>
+              <span class="pillar-pill-name">Prioritization</span>
+            </div>
+            <div class="pillar-pill" title="Streamlining manual workflows with Power Query, VBA, or formulas">
+              <span class="pillar-pill-icon">⚡</span>
+              <span class="pillar-pill-name">Process Automation</span>
+            </div>
+            <div class="pillar-pill" title="Accountability when formula mistakes happen and lessons learned">
+              <span class="pillar-pill-icon">🛡️</span>
+              <span class="pillar-pill-name">Failure & Learning</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CV Intake & Interview Calibration Card -->
+        <div class="config-card" id="cv-intake-card">
+          <div class="config-label">
+            <span>Step 1: Provide Your CV / Resume Experience</span>
+            <div class="intake-tabs-switcher">
+              <button type="button" class="intake-tab-btn active" id="btn-tab-upload-cv">📁 Upload File</button>
+              <button type="button" class="intake-tab-btn" id="btn-tab-paste-cv">📝 Paste Text</button>
+            </div>
+          </div>
+
+          <!-- Dropzone Container -->
+          <div class="cv-dropzone-wrapper" id="cv-dropzone-area">
+            <div class="cv-dropzone" id="cv-dropzone">
+              <input type="file" id="input-cv-file" accept=".txt,.pdf,.docx,.doc,.md,.csv" style="display: none;">
+              <div class="dropzone-content" id="cv-dropzone-content">
+                <span class="dropzone-icon">📄</span>
+                <p class="dropzone-title">Drag & drop your CV file here, or <button type="button" class="btn-link-action" id="btn-browse-cv">browse files</button></p>
+                <span class="dropzone-sub">Supports PDF, DOCX, TXT, MD, CSV (text extracted client-side with 100% privacy)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Paste Container (collapsible / toggleable) -->
+          <div class="cv-paste-wrapper" id="cv-paste-area" style="display: none;">
+            <textarea id="input-cv-paste" class="text-input cv-textarea" rows="7" placeholder="Paste your CV / resume text here (experience bullets, projects, metrics, company history)..."></textarea>
+            <div class="cv-char-counter">
+              <span id="cv-char-count">0</span> characters • <span id="cv-word-count">0</span> words
+            </div>
+          </div>
+
+          <!-- File Status Info Banner -->
+          <div id="cv-status-banner" class="cv-status-banner" style="display: none;">
+            <div class="cv-status-details">
+              <span class="cv-status-icon">✓</span>
+              <div>
+                <strong id="cv-status-filename">Resume.txt</strong>
+                <span id="cv-status-meta" class="cv-status-meta">4,200 chars • ~650 words</span>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-cv" title="Remove loaded CV">✕ Remove</button>
+          </div>
+
+          <!-- Calibration Controls: Seniority, Industry, Depth -->
+          <div class="competency-calibration-grid">
+            <!-- Seniority Selector -->
+            <div class="calibration-group">
+              <label class="calibration-label">Target Seniority Level</label>
+              <div class="seniority-selector" id="seniority-selector">
+                <button type="button" class="seniority-btn" data-seniority="junior">Junior (0-2y)</button>
+                <button type="button" class="seniority-btn active" data-seniority="mid">Mid-Level (3-5y)</button>
+                <button type="button" class="seniority-btn" data-seniority="senior">Senior (5-8y)</button>
+                <button type="button" class="seniority-btn" data-seniority="lead">Analytics Lead (8+y)</button>
+              </div>
+            </div>
+
+            <!-- Target Industry Dropdown -->
+            <div class="calibration-group">
+              <label for="select-competency-industry" class="calibration-label">Target Industry Domain</label>
+              <select id="select-competency-industry" class="select-input">
+                <option value="General Analytics" selected>General / Cross-Industry Analytics</option>
+                <option value="E-Commerce & Digital Retail">E-Commerce & Digital Retail</option>
+                <option value="FinTech & Banking">FinTech, Banking & Credit Risk</option>
+                <option value="SaaS & Subscription Tech">SaaS & B2B Subscription Tech</option>
+                <option value="Healthcare & Hospital Logistics">Healthcare & Hospital Logistics</option>
+                <option value="Supply Chain & Warehousing">Supply Chain & Warehousing</option>
+                <option value="Marketing & Customer Acquisition">Marketing & Customer Acquisition</option>
+                <option value="Operations & Process Optimization">Operations & Process Optimization</option>
+              </select>
+            </div>
+
+            <!-- Question Depth -->
+            <div class="calibration-group">
+              <label for="select-competency-depth" class="calibration-label">Interview Question Depth</label>
+              <select id="select-competency-depth" class="select-input">
+                <option value="6" selected>Rapid Fire • 6 Questions (1 per Pillar)</option>
+                <option value="12">Deep Dive • 12 Questions (2 per Pillar)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Action Buttons Row -->
+          <div class="cv-actions-row">
+            <button type="button" class="btn btn-primary btn-glow" id="btn-generate-competency">
+              <span>🎯</span> Interrogate CV & Generate Questions
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-load-sample-cv">
+              <span>📄</span> Load Sample Senior Analyst CV
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-clear-cv">
+              <span>🗑️</span> Clear
+            </button>
+          </div>
+
+          <!-- Generation Status Feedback -->
+          <div id="competency-status-feedback" class="competency-status-feedback" style="display: none;">
+            <div class="spinner-small" id="competency-spinner"></div>
+            <span id="competency-status-text">Analyzing your CV against recruiter competency matrices...</span>
+          </div>
+        </div>
+
+        <!-- Step 2: Competency Dashboard & Questions Grid (Hidden until questions exist) -->
+        <div class="competency-dashboard" id="competency-dashboard" style="display: none;">
+          <!-- Candidate Strategy Banner -->
+          <div class="competency-strategy-banner" id="competency-strategy-banner">
+            <div class="strategy-banner-content">
+              <div class="strategy-badge" id="competency-strategy-badge">Recruiter Tactical Blueprint</div>
+              <h3 class="strategy-title" id="competency-candidate-summary">Data Analyst Candidate Profile</h3>
+              <p class="strategy-desc" id="competency-strategy-advice">
+                Recruiters are focused on testing whether you owned analytical execution vs. merely receiving pre-cleaned spreadsheets. Use the STAR blueprints below to anchor your interview narrative.
+              </p>
+            </div>
+            <div class="strategy-banner-actions">
+              <button type="button" class="btn btn-outline-green" id="btn-print-competency-sheet">
+                <span>🖨️</span> Print Prep Sheet (PDF)
+              </button>
+              <button type="button" class="btn btn-secondary" id="btn-reset-competency">
+                <span>🔄</span> Test Another CV
+              </button>
+            </div>
+          </div>
+
+          <!-- Pillar Filters & Search Toolbar -->
+          <div class="competency-toolbar">
+            <div class="pillar-filters" id="competency-pillar-filters" role="tablist">
+              <button type="button" class="pillar-filter-btn active" data-pillar="all">All Pillars (<span id="filter-count-all">0</span>)</button>
+              <button type="button" class="pillar-filter-btn" data-pillar="impact">💼 Business Impact (<span id="filter-count-impact">0</span>)</button>
+              <button type="button" class="pillar-filter-btn" data-pillar="storytelling">🗣️ Storytelling (<span id="filter-count-storytelling">0</span>)</button>
+              <button type="button" class="pillar-filter-btn" data-pillar="ambiguity">🔍 Dirty Data (<span id="filter-count-ambiguity">0</span>)</button>
+              <button type="button" class="pillar-filter-btn" data-pillar="prioritization">⚖️ Prioritization (<span id="filter-count-prioritization">0</span>)</button>
+              <button type="button" class="pillar-filter-btn" data-pillar="automation">⚡ Automation (<span id="filter-count-automation">0</span>)</button>
+              <button type="button" class="pillar-filter-btn" data-pillar="learning">🛡️ Learning (<span id="filter-count-learning">0</span>)</button>
+            </div>
+
+            <div class="competency-search-box">
+              <input type="text" id="input-search-competency" class="text-input" placeholder="Filter questions by keyword (e.g. Power BI, KPI, SQL, executive)...">
+            </div>
+          </div>
+
+          <!-- Questions Grid Container -->
+          <div class="competency-questions-grid" id="competency-questions-grid">
+            <!-- Dynamic question cards injected here -->
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <!-- SETTINGS MODAL -->
@@ -833,6 +1155,116 @@
             <div class="shortcut-row"><kbd>Alt</kbd> + <kbd>C</kbd> <span>Toggle AI Excel Coach Chatbot</span></div>
             <div class="shortcut-row"><kbd>?</kbd> <span>Open this shortcuts help guide</span></div>
             <div class="shortcut-row"><kbd>Esc</kbd> <span>Close drawers and modals</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- COMPETENCY PRACTICE & AI RECRUITER EVALUATION MODAL               -->
+    <!-- ================================================================= -->
+    <div id="modal-competency-practice" class="modal-overlay">
+      <div class="modal-card competency-practice-modal-card" style="max-width: 820px; width: 94vw; max-height: 90vh; display: flex; flex-direction: column;">
+        <!-- Modal Header -->
+        <div class="modal-header" style="margin-bottom: 0; padding-bottom: 0.85rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.5rem;" id="practice-modal-pillar-icon">🎯</span>
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="pillar-pill-badge" id="practice-modal-pillar-badge">Business Impact</span>
+                <span class="q-index-badge" id="practice-modal-q-index">Question #1</span>
+              </div>
+              <h3 id="practice-modal-title" style="font-size: 1.15rem; font-weight: 700; color: var(--text-bright); margin-top: 0.25rem;">Practice Behavioral Response</h3>
+            </div>
+          </div>
+          <button type="button" class="btn btn-icon" id="btn-close-competency-practice" title="Close (Press Esc)" style="width: 32px; height: 32px; font-size: 1rem;">✕</button>
+        </div>
+
+        <!-- Modal Scrollable Body -->
+        <div class="modal-body" style="padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1;">
+          <!-- Active Question Context Banner -->
+          <div class="practice-question-callout">
+            <div class="practice-cv-anchor" id="practice-modal-cv-anchor">
+              📌 <strong>Anchored on your CV:</strong> <em id="practice-modal-anchor-text">"..."</em>
+            </div>
+            <h4 class="practice-question-text" id="practice-modal-question-text">
+              ...
+            </h4>
+            <div class="practice-recruiter-intent" id="practice-modal-recruiter-intent">
+              🕵️ <strong>Recruiter's Hidden Intent:</strong> <span id="practice-modal-intent-text">...</span>
+            </div>
+          </div>
+
+          <!-- Answer Format Mode Tabs -->
+          <div class="practice-mode-tabs" style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0 0.75rem 0; flex-wrap: wrap; gap: 0.5rem;">
+            <div class="intake-tabs-switcher">
+              <button type="button" class="intake-tab-btn active" id="btn-practice-mode-full">Structured Freeform</button>
+              <button type="button" class="intake-tab-btn" id="btn-practice-mode-guided">Guided STAR Step-by-Step</button>
+            </div>
+            <div class="practice-word-counter" style="font-size: 0.8rem; color: var(--text-muted);">
+              <span id="practice-word-count">0</span> words (Target: 150-300 words)
+            </div>
+          </div>
+
+          <!-- Freeform Textarea Container -->
+          <div id="practice-full-container">
+            <textarea id="input-practice-full" class="text-input practice-textarea" rows="8" placeholder="Draft your interview response using the STAR method:
+Situation: Set the business context, team environment, and stakes...
+Task: What was your specific mandate and core metric?
+Action: Walk through your exact analytical steps, tools, and cross-functional alignment...
+Result: Quantify commercial return ($ saved, % efficiency, or executive decision)..."></textarea>
+          </div>
+
+          <!-- Guided 4-Box STAR Container -->
+          <div id="practice-guided-container" style="display: none; flex-direction: column; gap: 0.75rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="input-star-s" style="font-size: 0.82rem; color: #38bdf8; font-weight: 700;">[S] Situation: The Context & Business Stakes</label>
+              <textarea id="input-star-s" class="text-input star-guided-textarea" rows="2" placeholder="Where were you working, what was the business challenge, and what were the stakes?"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="input-star-t" style="font-size: 0.82rem; color: #fbbf24; font-weight: 700;">[T] Task: Your Analytical Mandate & Core Metric</label>
+              <textarea id="input-star-t" class="text-input star-guided-textarea" rows="2" placeholder="What were you specifically tasked with solving or investigating?"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="input-star-a" style="font-size: 0.82rem; color: #4ade80; font-weight: 700;">[A] Action: Your Analytical Methodology & Communication</label>
+              <textarea id="input-star-a" class="text-input star-guided-textarea" rows="3" placeholder="What did YOU do? Which tools (Excel, SQL, Power BI), validations, and stakeholder meetings did you lead?"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="input-star-r" style="font-size: 0.82rem; color: #c084fc; font-weight: 700;">[R] Result: Quantified Business Outcome & Key Learning</label>
+              <textarea id="input-star-r" class="text-input star-guided-textarea" rows="2" placeholder="What was the measurable commercial impact ($ saved, % error reduction, hours saved) and lasting takeaway?"></textarea>
+            </div>
+          </div>
+
+          <!-- Ideal STAR Blueprint Drawer (collapsible) -->
+          <div id="practice-blueprint-drawer" class="practice-blueprint-drawer" style="display: none; margin-top: 1rem;">
+            <h5 style="font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 0.5rem;">💡 Recruiter-Recommended STAR Blueprint:</h5>
+            <div class="star-blueprint-grid" id="practice-blueprint-content">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Submit Action Row -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary" id="btn-practice-view-blueprint">
+              <span>💡</span> Toggle STAR Blueprint
+            </button>
+            <div style="display: flex; gap: 0.75rem;">
+              <button type="button" class="btn btn-secondary" id="btn-practice-clear-answer">Clear</button>
+              <button type="button" class="btn btn-primary btn-glow" id="btn-submit-competency-eval">
+                <span>🎯</span> Submit to AI Recruiter for Grading
+              </button>
+            </div>
+          </div>
+
+          <!-- Evaluation Loading Spinner -->
+          <div id="practice-eval-loading" class="competency-status-feedback" style="display: none; margin-top: 1.25rem;">
+            <div class="spinner-small"></div>
+            <span>Hiring manager is reviewing your STAR structure, personal ownership, and business ROI...</span>
+          </div>
+
+          <!-- AI Recruiter Evaluation Report Card -->
+          <div id="practice-eval-card" class="competency-eval-card" style="display: none; margin-top: 1.5rem;">
+            <!-- Injected via JavaScript -->
           </div>
         </div>
       </div>

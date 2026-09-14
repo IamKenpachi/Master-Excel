@@ -364,5 +364,268 @@ export const Exporter = {
 
     printWindow.document.write(printHtml);
     printWindow.document.close();
+  },
+
+  /**
+   * Generates a printable STAR Competency Interview Preparation Sheet (PDF)
+   */
+  printCompetencyPrepSheet(competencyData) {
+    if (!competencyData || !Array.isArray(competencyData.questions) || competencyData.questions.length === 0) {
+      alert("No competency questions available to print.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("⚠️ Pop-up window was blocked by your browser. Please allow pop-ups for this site to print the competency prep sheet.");
+      return;
+    }
+
+    const questions = competencyData.questions;
+    const safeSummary = escapeHtml(competencyData.candidateSummary || "Data Analyst Candidate Competency Assessment");
+    const safeSeniority = escapeHtml((competencyData.targetSeniority || "Mid-Level").toUpperCase());
+    const safeIndustry = escapeHtml((competencyData.targetIndustry || "General Analytics").toUpperCase());
+
+    const questionsHtml = questions.map((q, idx) => {
+      const qNum = idx + 1;
+      const safePillar = escapeHtml(q.pillarLabel || q.pillar || "Competency");
+      const safeAnchor = escapeHtml(q.cvAnchor || "");
+      const safeQuestion = escapeHtml(q.question || "");
+      const safeIntent = escapeHtml(q.recruiterIntent || "");
+      const star = q.starBlueprint || {};
+
+      return `
+        <div class="q-card">
+          <div class="q-header">
+            <span class="q-pillar-badge">${safePillar}</span>
+            <span class="q-index">Question #${qNum}</span>
+          </div>
+
+          ${safeAnchor ? `
+            <div class="cv-anchor-box">
+              <strong>📌 Anchored on Candidate CV:</strong> <em>"${safeAnchor}"</em>
+            </div>
+          ` : ""}
+
+          <div class="q-text">
+            <strong>${safeQuestion}</strong>
+          </div>
+
+          ${safeIntent ? `
+            <div class="recruiter-intent-box">
+              <strong>🕵️ Recruiter's Hidden Intent:</strong> ${safeIntent}
+            </div>
+          ` : ""}
+
+          <div class="star-grid">
+            <div class="star-item star-s">
+              <strong>[S] Situation</strong>
+              <p>${escapeHtml(star.situation || "Set business environment and stakes.")}</p>
+            </div>
+            <div class="star-item star-t">
+              <strong>[T] Task</strong>
+              <p>${escapeHtml(star.task || "Clarify specific responsibility and KPIs.")}</p>
+            </div>
+            <div class="star-item star-a">
+              <strong>[A] Action</strong>
+              <p>${escapeHtml(star.action || "Detail analysis steps and communication.")}</p>
+            </div>
+            <div class="star-item star-r">
+              <strong>[R] Result</strong>
+              <p>${escapeHtml(star.result || "Quantify commercial return and lessons learned.")}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const printHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>Competency Interview Prep Sheet - ${safeSeniority}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 12mm 10mm;
+          }
+          body {
+            font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+            color: #0f172a;
+            background: #ffffff;
+            margin: 0;
+            padding: 16px;
+            font-size: 9.5pt;
+            line-height: 1.4;
+          }
+          .no-print-bar {
+            text-align: right;
+            margin-bottom: 12px;
+          }
+          .print-btn {
+            padding: 8px 16px;
+            background: #107C41;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 10pt;
+            cursor: pointer;
+          }
+          .header-banner {
+            border-bottom: 2px solid #0f766e;
+            padding-bottom: 8px;
+            margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+          }
+          .main-title {
+            font-size: 14pt;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0 0 4px 0;
+          }
+          .subtitle {
+            font-size: 8.5pt;
+            color: #475569;
+            margin: 0;
+          }
+          .meta-box {
+            text-align: right;
+            font-size: 8.5pt;
+            color: #334155;
+            line-height: 1.3;
+          }
+          .summary-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            font-size: 8.5pt;
+            color: #334155;
+          }
+          .q-card {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            background: #ffffff;
+            page-break-inside: avoid;
+          }
+          .q-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+          }
+          .q-pillar-badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+          }
+          .q-index {
+            font-size: 8pt;
+            font-weight: 700;
+            color: #64748b;
+          }
+          .cv-anchor-box {
+            background: #fefce8;
+            border-left: 3px solid #eab308;
+            padding: 4px 8px;
+            font-size: 8pt;
+            color: #713f12;
+            margin-bottom: 6px;
+            border-radius: 0 4px 4px 0;
+          }
+          .q-text {
+            font-size: 10pt;
+            color: #0f172a;
+            margin-bottom: 6px;
+          }
+          .recruiter-intent-box {
+            background: #f1f5f9;
+            border-left: 3px solid #64748b;
+            padding: 4px 8px;
+            font-size: 8pt;
+            color: #334155;
+            margin-bottom: 8px;
+            border-radius: 0 4px 4px 0;
+          }
+          .star-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 6px;
+          }
+          .star-item {
+            padding: 4px;
+            font-size: 7.8pt;
+          }
+          .star-item strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 8pt;
+          }
+          .star-s strong { color: #0284c7; }
+          .star-t strong { color: #d97706; }
+          .star-a strong { color: #16a34a; }
+          .star-r strong { color: #7c3aed; }
+          .star-item p {
+            margin: 0;
+            color: #475569;
+            line-height: 1.25;
+          }
+          @media print {
+            body { padding: 0; }
+            .no-print-bar { display: none; }
+            .q-card { break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print-bar">
+          <button class="print-btn" onclick="window.print()">
+            🖨️ Print Competency Prep Sheet (PDF)
+          </button>
+        </div>
+
+        <div class="header-banner">
+          <div>
+            <h1 class="main-title">🎯 Data Analyst Competency Interview Preparation Sheet</h1>
+            <p class="subtitle">6-Pillar Behavioral Interview Questions with Recruiter Intent & STAR Blueprints</p>
+          </div>
+          <div class="meta-box">
+            <strong>Target Seniority:</strong> ${safeSeniority}<br>
+            <strong>Domain:</strong> ${safeIndustry}<br>
+            <strong>Questions:</strong> ${questions.length}
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <strong>Candidate Strategic Profile:</strong> ${safeSummary}
+        </div>
+
+        ${questionsHtml}
+
+        <div style="margin-top:14px; font-size:7.5pt; color:#64748b; text-align:center; border-top:1px solid #e2e8f0; padding-top:6px;">
+          Master-Excel & Competency Interview Engine • Generated for Candidate Behavioral Interview Preparation
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
   }
 };

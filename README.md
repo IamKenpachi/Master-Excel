@@ -1,14 +1,15 @@
 # ExcelCoach AI — Data Analyst Interview Mock Test & Case Study Generator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
-[![Tests: 40/40 Phase 5 Passing](https://img.shields.io/badge/Phase%205%20Tests-40%2F40%20Passing%20(100%25)-10B981.svg)](#automated-testing--verification)
-[![All Test Suites: 100% Passing](https://img.shields.io/badge/All%20Suites-100%25%20Passing-10B981.svg)](#automated-testing--verification)
+[![Module 2: CV Competency Interviewer](https://img.shields.io/badge/Module%202-CV%20Competency%20Interviewer-6366F1.svg)](#phase-6-dual-module-platform--module-2-cv-competency-interviewer)
+[![Landing Hub: 2-Card Portal](https://img.shields.io/badge/Portal-2--Card%20Welcome%20Hub-10B981.svg)](#phase-65-welcome-hub-2-card-portal-landing-page)
+[![All Test Suites: 123/123 Passing](https://img.shields.io/badge/All%20Suites-123%2F123%20Passing%20(100%25)-10B981.svg)](#automated-testing--verification)
 [![JavaScript](https://img.shields.io/badge/Vanilla_JS-ES6+-F7DF1E.svg?logo=javascript&logoColor=black)](#tech-stack--architecture)
 [![CSS3](https://img.shields.io/badge/Vanilla_CSS-Custom_Design_System-1572B6.svg?logo=css3&logoColor=white)](#tech-stack--architecture)
 [![Node.js](https://img.shields.io/badge/Node.js-v18+-339933.svg?logo=node.js&logoColor=white)](#getting-started)
 [![AI Engines](https://img.shields.io/badge/AI_Engines-Gemini_3.8_Flash_|_OpenRouter-8B5CF6.svg)](#ai-engine--dataset-intelligence)
 
-> **The ultimate technical assessment simulator for aspiring and seasoned Data Analysts, BI Engineers, and Analytics Consultants preparing for high-stakes spreadsheet technical interviews.**
+> **The ultimate dual-track interview preparation platform for Data Analysts, BI Engineers, and Analytics Consultants: mastering high-stakes spreadsheet technical tests and CV-anchored competency behavioral interviews.**
 
 ---
 
@@ -27,6 +28,8 @@
   - [Phase 5: Spaced Repetition (SRS), Daily Gauntlet & Verbal Defense](#phase-5-spaced-repetition-srs-daily-gauntlet--verbal-defense)
   - [Phase 5.5: Schema Inspector & Kaggle Live Dataset Documentation](#phase-55-schema-inspector--kaggle-live-dataset-documentation)
   - [Phase 5.6: Real Dataset Schema Upload Fallback & Generation Button Locking](#phase-56-real-dataset-schema-upload-fallback--generation-button-locking)
+  - [Phase 6: Dual-Module Platform & Module 2 (CV Competency Interviewer)](#phase-6-dual-module-platform--module-2-cv-competency-interviewer)
+  - [Phase 6.5: Welcome Hub 2-Card Portal Landing Page](#phase-65-welcome-hub-2-card-portal-landing-page)
 - [Core Analyst Competencies Tested](#core-analyst-competencies-tested)
 - [Power-User Keyboard Shortcuts](#power-user-keyboard-shortcuts)
 - [Tech Stack & Architecture](#tech-stack--architecture)
@@ -53,6 +56,9 @@ Candidates fail these interviews not because they don't know basic formulas, but
 
 ## ⚡ Key Highlights
 
+- 🏛️ **2-Card Portal Landing Hub**: Interactive Welcome Hub routing candidates into either the *Excel Technical Simulator* or the *CV Competency Interviewer* with zero state loss upon return.
+- 🎯 **CV Competency-Based Interviewer (Module 2)**: Client-side CV interrogation engine mapping resume claims against the 6 core Data Analyst recruiter pillars (Impact, Storytelling, Ambiguity, Prioritization, Automation, Accountability).
+- 🎙️ **Interactive STAR Practice Room & AI Recruiter Grading**: Freeform & guided STAR response modes, live word guidance, 1–10 hiring scores, STAR pass/fail checklist, red flags, and 10/10 gold-standard model answers.
 - 🏢 **Industry-Authentic Case Studies**: Tailored business context spanning 10 industries (SaaS, FinTech, Healthcare, Logistics, E-Commerce, Retail, etc.).
 - 📊 **Real Datasets Integration**: Fetches real schemas and metadata directly from **Kaggle** and **Hugging Face Hub**.
 - 🧪 **Live Formula Bar & Real-Time Linter**: Type Excel formulas into a live input with 9 built-in static analysis rules before submitting.
@@ -294,6 +300,69 @@ Instead of repetitive generic quizzes, introduced a 4-way workout split targetin
 
 ---
 
+### Phase 6: Dual-Module Platform & Module 2 (CV Competency Interviewer)
+*Transforms ExcelCoach AI into a unified dual-track interview cockpit by adding an intelligent behavioral interrogation engine based on real recruiter practices at top tech, financial, and consulting firms.*
+
+- **1. Header Dual-Platform Module Switcher (`#module-switcher`)**:
+  - Segmented pill switcher in the top navigation bar allowing seamless switching between:
+    - **📊 Excel Technical**: Spreadsheet case studies, live formulas, schema inspector, workout drills, and timed exams.
+    - **🎯 CV Competency**: Behavioral interview prep, recruiter STAR evaluation, and resume interrogation.
+  - Zero-data loss state orchestration: toggling between tracks preserves active spreadsheet timers, draft formula inputs, test questions, and uploaded CV texts without reloading.
+
+- **2. The 6 Core Data Analyst Competency Pillars**:
+  - Rigorously calibrated around recruiter benchmarks from Amazon, Meta, Google, and tier-1 management consultancies:
+    1. 💼 **Business Impact & Commercial Acumen** (`impact`): Linking SQL/spreadsheet deliverables to bottom-line revenue, cost savings, and executive decisions.
+    2. 🗣️ **Stakeholder Management & Storytelling** (`storytelling`): Communicating complex findings to non-technical leaders and defending data integrity against pushback.
+    3. 🔍 **Dirty Data & Ambiguity Resolution** (`ambiguity`): Scoping undefined requirements, handling missing values/broken schemas, and building defensive validation.
+    4. ⚖️ **Prioritization & Scope Management** (`prioritization`): Triaging competing ad-hoc fire drills, managing backlogs, and communicating technical trade-offs.
+    5. ⚡ **Process Optimization & Automation** (`automation`): Eliminating repetitive manual toil using Power Query, VBA, or dynamic arrays.
+    6. 🛡️ **Accountability & Continuous Learning** (`learning`): Transparently acknowledging calculation errors or formula flaws and establishing preventive guardrails.
+
+- **3. CV Intake & Seniority Calibration Engine**:
+  - **Client-Side Document Parsing**: Drag-and-drop or browse `.pdf`, `.docx`, `.txt`, `.md`, or `.csv` with instantaneous local extraction (100% data privacy; files never leave the browser).
+  - **Paste Text Mode**: Dedicated intake textarea with live character and word counters.
+  - **4 Seniority Calibration Levels**: `Junior` (0–2y), `Mid-Level` (3–5y), `Senior Analyst` (5–8y), and `Analytics Lead / Manager` (8+y).
+  - **Domain Customization**: 8 industry domain presets (FinTech, E-Commerce, SaaS, Healthcare, Supply Chain, etc.) or General Analytics.
+  - **Built-in Senior Analyst Sample Profile**: One-click demo profile (`Sarah Jennings, Senior Commercial Data Analyst`) with $1.2M cost recovery and Power BI/Excel automation metrics for immediate offline testing.
+
+- **4. Recruiter Interrogation Dashboard & Question Cards**:
+  - **Candidate Strategy Banner**: Displays the hiring manager's executive overview and tailored focal points.
+  - **Pillar Filter Tabs**: Real-time counter badges (`All Pillars (6)`, `Business Impact (1)`, etc.) and live question search bar.
+  - **Deep-Dive Question Cards**:
+    - *Exact CV Anchor*: Cites the candidate's actual resume project or claim (e.g., *"Anchored on your CV: Discovered supplier invoicing discrepancy across 14,000 rows..."*).
+    - *Recruiter Hidden Intent Drawer*: Pulls back the curtain on the secret hiring manager agenda behind each question.
+    - *Recommended STAR Blueprint Drawer*: Detailed 4-part breakdown (`[S]` Situation, `[T]` Task, `[A]` Action, `[R]` Result) showing how to structure the narrative.
+
+- **5. Interactive Practice & AI Recruiter Grading Modal**:
+  - Dual response modes: **Structured Freeform** (with live word guidance; 150–300 words optimal) vs. **Guided STAR Step-by-Step** (individual color-coded input boxes).
+  - **AI Recruiter Evaluation Report Card**:
+    - Objective 1–10 scoring with hiring verdict badge (`STRONG HIRE`, `HIRE`, `BORDERLINE`, `NEEDS WORK`).
+    - STAR Checklist: Visual pass/fail confirmation for `[S]`, `[T]`, `[A]`, and `[R]`.
+    - Recruiter Green Flags: Bullet points highlighting impressive quantitative metrics or commercial acumen.
+    - Recruiter Pause Points: Warnings highlighting missing numbers, ambiguous role ownership ("we" vs "I"), or vague results.
+    - 10/10 Gold Standard Model Answer: A tailored, comprehensive benchmark response for reference.
+    - Tactical Coaching Edge: Actionable advice for live interview rooms.
+
+- **6. Printable A4 STAR Competency Prep Sheet**:
+  - Generates a clean, professional print/PDF cheat sheet via `Exporter.printCompetencyPrepSheet()` containing candidate summary, all 6 pillar questions, CV anchors, recruiter intents, and 4-column STAR blueprints for review before interview day.
+
+---
+
+### Phase 6.5: Welcome Hub 2-Card Portal Landing Page
+*Introduces an authoritative, clean entry point directing candidates into their desired interview arena.*
+
+- **1. Dedicated `#screen-landing` Entry Point**:
+  - Sets the Welcome Hub as the default view upon arrival.
+  - Features the platform badge `🏆 360° Data Analyst Interview Preparation Platform` and title `Master the Complete Data Analyst Interview`.
+- **2. Interactive 2-Card Portal Grid**:
+  - **Card 1: Excel Technical Simulator** (`#portal-card-excel`): Emerald glow, 5-point feature checklist (real data ranking, live formula linter, 3-tier hints, gauntlet & drills, hiring scorecard), and CTA button `🚀 Launch Technical Simulator →`.
+  - **Card 2: CV Competency Interviewer** (`#portal-card-competency`): Indigo glow, 5-point feature checklist (CV bullet interrogation, 6 recruiter pillars, intent callouts, STAR practice room, AI recruiter grading), and CTA button `🎙️ Launch CV Competency Prep →`.
+- **3. Navigation & Clean State Preservation**:
+  - Top header sub-nav bar (`#nav-links-excel`) automatically hides on the Welcome Hub for a clean, distraction-free aesthetic.
+  - Clicking `#nav-brand` ("ExcelCoach AI") returns to the Welcome Hub anytime **without resetting or destroying** active Excel test timers, active test questions, formula bar text, or loaded CV data.
+
+---
+
 ## 🧠 Core Analyst Competencies Tested
 
 ```
@@ -361,6 +430,8 @@ excel-mock-test/
 ├── export.js                # Print styling, test sheet & 1-page cheat sheet
 ├── server.js                # Lightweight Node.js API proxy server
 ├── scripts/
+│   ├── test_landing_page.mjs    # 25-test suite for Welcome Hub 2-Card Portal Landing Page
+│   ├── test_competency_module.mjs # 20-test suite for Module 2 (CV Competency Interviewer)
 │   ├── test_schema_upload_guard.mjs # 9-test suite for Schema Upload Dropzone & Button Lock
 │   ├── test_audit_fixes.mjs     # 25-test suite for full security, export & formula audit fixes
 │   ├── test_schema_and_dataset_modal.mjs # 21-test suite for Schema Inspector & Dataset Details Modal
@@ -427,6 +498,12 @@ excel-mock-test/
 Run the full automated verification test suites from the terminal:
 
 ```bash
+# Run 25-test suite for Welcome Hub 2-Card Portal Landing Page
+node scripts/test_landing_page.mjs
+
+# Run 20-test suite for Module 2: CV Competency-Based Interviewer
+node scripts/test_competency_module.mjs
+
 # Run 9-test suite for Schema Upload Fallback & Generation Button Locking
 node scripts/test_schema_upload_guard.mjs
 
@@ -453,6 +530,8 @@ node scripts/test_hint_display.mjs
 ```
 
 **Test Coverage Summary**:
+- **Welcome Hub Portal**: `#screen-landing` default route, responsive 2-card grid, sub-nav visibility toggling, and in-memory state preservation without test data loss.
+- **CV Competency Engine**: Client-side CV text extraction, 6-pillar question generation, CV anchor quotes, hidden recruiter intent, guided STAR inputs, and AI grading.
 - **Spaced Repetition (SRS)**: SM-2 interval expansion, reset on hard rating, due-date filtering, and graduation to Mastered.
 - **Daily Gauntlet**: 3-minute sprint countdown, calendar-day streak tracking, difficulty override toggle, and 3-axis scoring.
 - **Verbal Defense Mode**: 20 scenario drills, 3-axis rubric (Accuracy, Clarity, Interview Language), and model answer display.

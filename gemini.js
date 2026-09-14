@@ -5,7 +5,9 @@ import {
   buildTestGenerationPrompt,
   buildDatasetRankingPrompt,
   buildDrillGenerationPrompt,
-  buildHintPrompt
+  buildHintPrompt,
+  buildCompetencyQuestionPrompt,
+  buildCompetencyEvaluationPrompt
 } from "./prompts.js";
 import { Storage, DEFAULT_MODEL, SAMPLE_OFFLINE_TEST } from "./storage.js";
 
@@ -940,6 +942,103 @@ Do not include markdown code fences, return raw JSON.`;
     }
 
     return evaluateVerbalDefenseOffline(question, context, trimmed);
+  },
+
+  // ----------------------------------------------------
+  // Module 2: CV Competency-Based Interview Engine
+  // ----------------------------------------------------
+  /**
+   * Generate CV-anchored competency questions across the 6 core pillars
+   */
+  async generateCompetencyQuestions({ cvText, seniority = "mid", industry = "general", count = 8, apiKey, model = DEFAULT_MODEL }) {
+    if (!apiKey) {
+      return Gemini.getOfflineCompetencyData(seniority, industry);
+    }
+
+    try {
+      const prompt = buildCompetencyQuestionPrompt({ cvText, seniority, industry, count });
+      const systemInstruction = "You are a Principal Talent Partner & Senior Analytics Director conducting a high-stakes competency interview. Return only valid JSON matching the exact schema without markdown code fences.";
+      const res = await callGeminiAPI({
+        model,
+        apiKey,
+        systemInstruction,
+        prompt,
+        schemaType: "application/json"
+      });
+
+      const parsed = cleanAndParseJSON(res.text);
+      if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("Gemini competency question generation failed, using offline fallback:", err);
+    }
+
+    return Gemini.getOfflineCompetencyData(seniority, industry);
+  },
+
+  /**
+   * Evaluate candidate's STAR response
+   */
+  async evaluateCompetencyAnswer({ questionObj, cvText = "", candidateAnswer, seniority = "mid", apiKey, model = DEFAULT_MODEL }) {
+    const trimmed = (candidateAnswer || "").trim();
+    if (!trimmed) {
+      return {
+        score: 0,
+        verdict: "NEEDS WORK",
+        verdictSummary: "No response was submitted for evaluation.",
+        starBreakdown: { situation: false, task: false, action: false, result: false, feedback: "Please provide a STAR response." },
+        greenFlags: [],
+        redFlags: ["Empty response."],
+        modelAnswer: questionObj.starBlueprint ? `Situation: ${questionObj.starBlueprint.situation}. Task: ${questionObj.starBlueprint.task}. Action: ${questionObj.starBlueprint.action}. Result: ${questionObj.starBlueprint.result}.` : "Provide a structured answer.",
+        coachingTip: "Draft your answer outlining Situation, Task, Action, and Result."
+      };
+    }
+
+    if (apiKey) {
+      try {
+        const prompt = buildCompetencyEvaluationPrompt({ questionObj, cvText, candidateAnswer: trimmed, seniority });
+        const systemInstruction = "You are an executive hiring manager grading a Data Analyst competency interview. Return only valid JSON matching the exact schema without markdown code fences.";
+        const res = await callGeminiAPI({
+          model,
+          apiKey,
+          systemInstruction,
+          prompt,
+          schemaType: "application/json"
+        });
+
+        const parsed = cleanAndParseJSON(res.text);
+        if (parsed && typeof parsed.score === "number") {
+          return {
+            score: Math.min(10, Math.max(0, parsed.score)),
+            verdict: parsed.verdict || (parsed.score >= 8.5 ? "STRONG HIRE" : parsed.score >= 7 ? "HIRE" : parsed.score >= 5 ? "BORDERLINE" : "NEEDS WORK"),
+            verdictSummary: parsed.verdictSummary || "Candidate response evaluated against STAR criteria.",
+            starBreakdown: parsed.starBreakdown || { situation: true, task: true, action: true, result: false, feedback: "STAR evaluated." },
+            greenFlags: Array.isArray(parsed.greenFlags) ? parsed.greenFlags : ["Demonstrated familiarity with analytical workflow."],
+            redFlags: Array.isArray(parsed.redFlags) ? parsed.redFlags : ["Could quantify business outcome more explicitly."],
+            modelAnswer: parsed.modelAnswer || "Model answer generated.",
+            coachingTip: parsed.coachingTip || "Emphasize personal ownership with 'I' statements and business ROI."
+          };
+        }
+      } catch (err) {
+        console.warn("Gemini competency evaluation failed, using offline fallback:", err);
+      }
+    }
+
+    return evaluateCompetencyOffline(questionObj, trimmed, seniority);
+  },
+
+  /**
+   * Get built-in offline competency question set
+   */
+  getOfflineCompetencyData(seniority = "mid", industry = "general") {
+    return {
+      candidateSummary: `Seniority: ${seniority.toUpperCase()} | Industry: ${industry.toUpperCase()} • 6-Pillar Data Analyst Competency Assessment with pre-calibrated STAR blueprints and recruiter intents.`,
+      targetSeniority: seniority,
+      targetIndustry: industry,
+      isOfflineDemo: true,
+      questions: SAMPLE_OFFLINE_COMPETENCY_QUESTIONS
+    };
   }
 };
 
@@ -1351,5 +1450,145 @@ I can explain any Excel function, formula structure, or error troubleshooting st
 
 *(Tip: Add your free Google Gemini API key in **Settings** to ask open-ended custom questions!)*`;
 }
+
+// ----------------------------------------------------
+// Offline Competency Question Bank & Heuristic Grader
+// ----------------------------------------------------
+
+export const SAMPLE_OFFLINE_COMPETENCY_QUESTIONS = [
+  {
+    id: "comp-1",
+    pillar: "impact",
+    pillarLabel: "Business Impact & Commercial Acumen",
+    cvAnchor: "Built automated regional sales performance reporting dashboards in Excel & Power BI",
+    question: "Walk me through an analytical project where your insight directly influenced an executive business decision. How did you quantify the commercial return or cost reduction?",
+    recruiterIntent: "Tests whether you merely build charts on demand or actively bridge numbers to business revenue, margin improvement, and strategic action.",
+    starBlueprint: {
+      situation: "Describe the business unit, initial revenue leakage, or operational blind spot.",
+      task: "Define your exact analytical charter and what leadership asked you to uncover.",
+      action: "Explain your data modeling, cross-functional validation with sales leads, and how you presented the findings.",
+      result: "State the dollar impact, hours saved, or conversion percentage increase achieved."
+    }
+  },
+  {
+    id: "comp-2",
+    pillar: "storytelling",
+    pillarLabel: "Stakeholder Management & Storytelling",
+    cvAnchor: "Presented weekly trading and operational performance summaries to regional directors",
+    question: "Tell me about a time you had to present complex findings to a skeptical executive who challenged your data or had strong conflicting intuition. How did you maintain credibility?",
+    recruiterIntent: "Evaluates diplomacy, emotional intelligence, and ability to defend analytical integrity without alienating leadership.",
+    starBlueprint: {
+      situation: "Set the scene: What was the meeting, who was the skeptical stakeholder, and what was their prior belief?",
+      task: "Your objective: Validate the numbers while preserving trust with the leadership team.",
+      action: "How you walked through the underlying assumptions, acknowledged their domain knowledge, and used visual storytelling.",
+      result: "The final resolution, stakeholder alignment, and the policy decision that followed."
+    }
+  },
+  {
+    id: "comp-3",
+    pillar: "ambiguity",
+    pillarLabel: "Dirty Data & Ambiguity Resolution",
+    cvAnchor: "Cleaned, transformed, and consolidated multi-year transaction datasets across legacy databases",
+    question: "Describe a project where you were given vague, conflicting requirements and dirty source data with missing identifiers. How did you scope the task and validate your output?",
+    recruiterIntent: "Assesses tolerance for ambiguity, data hygiene protocols, proactive requirement scoping, and defensive modeling.",
+    starBlueprint: {
+      situation: "Explain what was broken in the source tables (e.g. missing keys, non-standardized text, mismatched dates).",
+      task: "What question the business needed answered despite the schema defects.",
+      action: "Your transformation strategy: Power Query steps, reconciliation checks against source balances, and stakeholder alignment.",
+      result: "The clean dataset created, reconciliation error rate (e.g. 0.01%), and ongoing automated data validation rules implemented."
+    }
+  },
+  {
+    id: "comp-4",
+    pillar: "prioritization",
+    pillarLabel: "Prioritization & Scope Management",
+    cvAnchor: "Managed ad-hoc reporting and analytics deliverables across operations, finance, and marketing teams",
+    question: "Data analysts are frequently inundated with urgent ad-hoc requests. Tell me about a time when three competing stakeholders each claimed their report was top priority. How did you handle it?",
+    recruiterIntent: "Probes time management, transparent communication, prioritization frameworks (effort vs impact), and ability to say 'no' constructively.",
+    starBlueprint: {
+      situation: "List the competing demands and why each stakeholder felt their request was time-critical.",
+      task: "Your need to balance immediate business fire-drills with long-term strategic analytics.",
+      action: "How you assessed business impact, communicated deadlines proactively, offered quick interim cuts of data, and established SLA expectations.",
+      result: "All key deliverables met on prioritized schedule without burning bridges or compromising data accuracy."
+    }
+  },
+  {
+    id: "comp-5",
+    pillar: "automation",
+    pillarLabel: "Process Optimization & Automation",
+    cvAnchor: "Streamlined month-end reporting workflows, reducing compilation turnaround time by 40%",
+    question: "Tell me about a repetitive or error-prone spreadsheet process you inherited. What tools did you introduce, what failed during the initial rollout, and what were the permanent efficiency gains?",
+    recruiterIntent: "Tests engineering mindset: Eliminating toil, reducing human error, and building maintainable, documented analytics pipelines.",
+    starBlueprint: {
+      situation: "Describe the legacy manual workflow (e.g. 4 hours of copy-pasting CSVs every Monday morning).",
+      task: "Your decision to automate and modernize the data pipeline.",
+      action: "Tools chosen (Power Query, Dynamic Arrays, Python/VBA), edge cases handled, and documentation created for the team.",
+      result: "Quantifiable hours saved per week, elimination of copy-paste formula errors, and immediate report turnaround."
+    }
+  },
+  {
+    id: "comp-6",
+    pillar: "learning",
+    pillarLabel: "Accountability & Continuous Learning",
+    cvAnchor: "Collaborated with BI engineers to audit metric consistency across financial reporting models",
+    question: "Tell me about a time you published an analysis or dashboard and subsequently discovered a flaw in your formula logic or source assumptions. How did you communicate and remediate the issue?",
+    recruiterIntent: "High-stakes honesty test: Does the candidate hide mistakes, blame engineering, or take swift, mature ownership and implement preventive guardrails?",
+    starBlueprint: {
+      situation: "The project and how the discrepancy was identified.",
+      task: "Immediate need for containment and transparent stakeholder communication.",
+      action: "How you notified stakeholders promptly, audited the root cause, fixed the underlying calculation, and added automated validation tests.",
+      result: "Restored stakeholder trust, prevented recurring issues, and institutionalized a new peer-review or reconciliation checklist."
+    }
+  }
+];
+
+function evaluateCompetencyOffline(questionObj, candidateAnswer, seniority) {
+  const words = candidateAnswer.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+
+  const lower = candidateAnswer.toLowerCase();
+  const hasSituation = /situation|context|at my|when i was|working at|team was|background/i.test(lower);
+  const hasTask = /task|responsible|goal|objective|needed to|assigned/i.test(lower);
+  const hasAction = /action|i analyzed|i built|i wrote|i transformed|i met|i created|i investigated|i implemented/i.test(lower);
+  const hasResult = /result|outcome|saved|increased|decreased|improved|impact|consequence|percent|%|\$/i.test(lower);
+
+  let baseScore = 6.0;
+  if (hasSituation) baseScore += 0.8;
+  if (hasTask) baseScore += 0.8;
+  if (hasAction) baseScore += 1.2;
+  if (hasResult) baseScore += 1.2;
+  if (wordCount >= 100 && wordCount <= 350) baseScore += 0.5;
+
+  const finalScore = Math.min(10, Math.max(3.5, parseFloat(baseScore.toFixed(1))));
+  const verdict = finalScore >= 8.5 ? "STRONG HIRE" : finalScore >= 7.0 ? "HIRE" : finalScore >= 5.5 ? "BORDERLINE" : "NEEDS WORK";
+
+  const greenFlags = [];
+  if (hasAction) greenFlags.push("Demonstrated clear personal ownership with active action verbs.");
+  if (hasResult) greenFlags.push("Referenced business impact and quantitative outcome.");
+  if (wordCount >= 80) greenFlags.push("Provided sufficient depth and context without excessive rambling.");
+
+  const redFlags = [];
+  if (!hasResult) redFlags.push("Missing quantifiable business impact (e.g. dollars saved, error rate reduced, hours gained).");
+  if (!hasSituation) redFlags.push("Could establish the stakeholder environment and business stakes earlier in the response.");
+  if (wordCount < 80) redFlags.push("Answer is quite brief; interviewers expect 150-250 words to demonstrate depth.");
+
+  return {
+    score: finalScore,
+    verdict,
+    verdictSummary: `[Offline Heuristic Evaluation] Candidate demonstrated a ${verdict} caliber response with a score of ${finalScore}/10 across core STAR dimensions.`,
+    starBreakdown: {
+      situation: hasSituation,
+      task: hasTask,
+      action: hasAction,
+      result: hasResult,
+      feedback: `Identified S:${hasSituation ? '✓' : '✗'} T:${hasTask ? '✓' : '✗'} A:${hasAction ? '✓' : '✗'} R:${hasResult ? '✓' : '✗'} in candidate text.`
+    },
+    greenFlags: greenFlags.length > 0 ? greenFlags : ["Communicated clearly with relevant analytical terminology."],
+    redFlags: redFlags.length > 0 ? redFlags : ["Continue practicing articulating the 'Result' metric upfront."],
+    modelAnswer: `Situation: In my previous data analytics role, we experienced operational friction related to ${questionObj.cvAnchor || 'data reporting'}. Task: My mandate was to establish single-source-of-truth clarity and align cross-functional stakeholders. Action: I scoped the data requirements, built automated transformation pipelines in Power Query/SQL, validated edge-case anomalies, and held alignment sessions with leadership. Result: This reduced reporting turnaround by 35%, eliminated manual reconciliation errors, and provided executive leaders with reliable decision-making intelligence.`,
+    coachingTip: "Always close your competency response with a quantifiable business outcome and 1 lesson learned to demonstrate senior analytical maturity."
+  };
+}
+
 
 
